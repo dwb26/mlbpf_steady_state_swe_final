@@ -607,7 +607,7 @@ void ml_bootstrap_particle_filter(HMM * hmm, int * sample_sizes, int * nxs, gsl_
 	int obs_pos1 = nx1 - 1;
 	int obs_pos0 = nx0 - 1;
 	int N0 = sample_sizes[0], N1 = sample_sizes[1], N_tot = N0 + N1;
-	int poly_degree = 0, M_poly = poly_degree + 1, mesh_size = 1000;
+	int poly_degree = 1, M_poly = poly_degree + 1, mesh_size = 1000;
 	double sig_sd = hmm->sig_sd, obs_sd = hmm->obs_sd;
 	double space_left = hmm->space_left, space_right = hmm->space_right, k = hmm->k;
 	double dx1 = (space_right - space_left) / (double) (nx1 - 1);
@@ -759,9 +759,11 @@ void ml_bootstrap_particle_filter(HMM * hmm, int * sample_sizes, int * nxs, gsl_
 				/* Output the true correction curve */
 			// 	gamma_theta = gamma_of_k * pow(sig_theta_mesh[l], k);
 			// 	solve(k, sig_theta_mesh[l], nx1, xs1, Z_x1, h1, dx1, q_init_sq, gamma_theta);
-			// 	g1 = h1[obs_pos1];
+			// 	// g1 = h1[obs_pos1];
+			// 	g1 = sin(lmbda * h1[obs_pos1]) + h1[obs_pos1];
 			// 	solve(k, sig_theta_mesh[l], nx0, xs0, Z_x0, h0, dx0, q_init_sq, gamma_theta);
-			// 	g0 = h0[obs_pos0];
+			// 	// g0 = h0[obs_pos0];
+			// 	g0 = sin(lmbda * h0[obs_pos0]) + h0[obs_pos0];
 			// 	g0 += poly_eval(sig_theta_mesh[l], poly_weights, poly_degree);
 			// 	// fprintf(TRUE_CURVE, "%e ", g1 - g0);
 			// 	fprintf(TRUE_CURVE, "%e ", g1);
@@ -996,7 +998,7 @@ void bootstrap_particle_filter(HMM * hmm, int N, gsl_rng * rng, w_double ** weig
 		}
 		fprintf(X_HATS, "%e ", x_hat);
 		// for (int i = 0; i < N; i++)
-		// 	fprintf(BPF_DISTR, "%e %e\n", weighted[n][i].x, weighted[n][i].w);
+			// fprintf(BPF_DISTR, "%e %e\n", weighted[n][i].x, weighted[n][i].w);
 
 
 
@@ -1262,7 +1264,7 @@ void ml_bootstrap_particle_filter_timed(HMM * hmm, int * sample_sizes, int * nxs
 	int obs_pos1 = nx1 - 1;
 	int obs_pos0 = nx0 - 1;
 	int N0 = sample_sizes[0], N1 = sample_sizes[1], N_tot = N0 + N1;
-	int poly_degree = 0, M_poly = poly_degree + 1, mesh_size = 1000;
+	int poly_degree = 1, M_poly = poly_degree + 1, mesh_size = 1000;
 	double sig_sd = hmm->sig_sd, obs_sd = hmm->obs_sd;
 	double space_left = hmm->space_left, space_right = hmm->space_right, k = hmm->k;
 	double dx1 = (space_right - space_left) / (double) (nx1 - 1);
@@ -1339,7 +1341,7 @@ void ml_bootstrap_particle_filter_timed(HMM * hmm, int * sample_sizes, int * nxs
 	fprintf(REGRESSION_CURVE, "%d\n", mesh_size);
 	fprintf(ML_DISTR, "%d %d %d\n", N0, N1, N_tot);
 	fprintf(SIGNS, "%d %d %d\n", N0, N1, N_tot);
-
+	double lmbda = 1.0 * M_PI;
 
 
 	/* ---------------------------------------------- Time iterations ---------------------------------------------- */
@@ -1365,11 +1367,13 @@ void ml_bootstrap_particle_filter_timed(HMM * hmm, int * sample_sizes, int * nxs
 
 			/* Fine solution */
 			solve(k, sig_thetas[i], nx1, xs1, Z_x1, h1, dx1, q_init_sq, gamma_theta);
-			solns1[i - N0] = h1[obs_pos1];
+			// solns1[i - N0] = h1[obs_pos1];
+			solns1[i - N0] = sin(lmbda * h1[obs_pos1]) + h1[obs_pos1];
 
 			/* Coarse solution */
 			solve(k, sig_thetas[i], nx0, xs0, Z_x0, h0, dx0, q_init_sq, gamma_theta);
-			solns0[i] = h0[obs_pos0];
+			// solns0[i] = h0[obs_pos0];
+			solns0[i] = sin(lmbda * h0[obs_pos0]) + h0[obs_pos0];
 
 			/* Record the corrections samples for the regression approximation to the true correction curve */
 			corrections[i - N0] = solns1[i - N0] - solns0[i];
@@ -1388,7 +1392,8 @@ void ml_bootstrap_particle_filter_timed(HMM * hmm, int * sample_sizes, int * nxs
 
 			gamma_theta = gamma_of_k * pow(sig_thetas[i], k);
 			solve(k, sig_thetas[i], nx0, xs0, Z_x0, h0, dx0, q_init_sq, gamma_theta);
-			solns0[i] = h0[obs_pos0];
+			// solns0[i] = h0[obs_pos0];
+			solns0[i] = sin(lmbda * h0[obs_pos0]) + h0[obs_pos0];
 
 		}
 

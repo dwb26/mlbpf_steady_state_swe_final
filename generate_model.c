@@ -18,7 +18,7 @@
 
 // This is the 1d steady state shallow water equations model
 
-void equal_runtimes_model(gsl_rng * rng, HMM * hmm, int ** N0s, int * N1s, w_double ** weighted_ref, int N_ref, int N_trials, int N_bpf, int * level0_meshes, int n_data, FILE * RAW_BPF_TIMES, FILE * RAW_BPF_KS, FILE * RAW_BPF_MSE, w_double ** ml_weighted)  {
+void equal_runtimes_model(gsl_rng * rng, HMM * hmm, int ** N0s, int * N1s, w_double ** weighted_ref, int N_ref, int N_trials, int N_bpf, int * level0_meshes, int n_data, FILE * RAW_BPF_TIMES, FILE * RAW_BPF_KS, FILE * RAW_BPF_MSE, w_double ** ml_weighted, FILE * BPF_CENTILE_MSE)  {
 
 	// int run_ref = 1;		// REF ON
 	int run_ref = 0;		// REF OFF
@@ -36,7 +36,7 @@ void equal_runtimes_model(gsl_rng * rng, HMM * hmm, int ** N0s, int * N1s, w_dou
 	/* ----------------- */
 	/* Run the BPF with a set number of particles N_bpf < N_ref and record the accuracy and the mean time taken. Then for each mesh configuration, increment the level 1 particle allocation and compute the level 0 particle allocation so that the time taken for the MLBPF is roughly the same as the BPF */
 	double T, T_temp;
-	T = perform_BPF_trials(hmm, N_bpf, rng, N_trials, N_ref, weighted_ref, n_data, RAW_BPF_TIMES, RAW_BPF_KS, RAW_BPF_MSE);
+	T = perform_BPF_trials(hmm, N_bpf, rng, N_trials, N_ref, weighted_ref, n_data, RAW_BPF_TIMES, RAW_BPF_KS, RAW_BPF_MSE, BPF_CENTILE_MSE);
 	// if (n_data == 0)
 		// compute_sample_sizes(hmm, rng, level0_meshes, 2 * T / (double) hmm->length, N0s, N1s, N_bpf, N_trials, ml_weighted);
 	T_temp = read_sample_sizes(hmm, N0s, N1s, N_trials);
@@ -51,7 +51,9 @@ void generate_hmm(gsl_rng * rng, HMM * hmm, int n_data, int length, int nx) {
 	*/
 	int obs_pos = nx - 1;
 	// double sig_sd = 5.5;
-	double sig_sd = 2.5;
+	// double sig_sd = 2.5;
+	double sig_sd = 2.0;
+	// double obs_sd = 0.05 * 0.037881;
 	// double obs_sd = 0.1 * 0.037881;
 	double obs_sd = 0.25 * 0.037881;
 	// double obs_sd = 0.5 * 0.037881;
@@ -89,6 +91,7 @@ void generate_hmm(gsl_rng * rng, HMM * hmm, int n_data, int length, int nx) {
 	double * thetas = (double *) malloc(N * sizeof(double));
 	double * solns = (double *) malloc(N * sizeof(double));
 	gsl_rng * rng0 = gsl_rng_alloc(gsl_rng_taus);
+	double lmbda = 1.0 * M_PI;
 
 	/* Generate the data */
 	for (int n = 0; n < length; n++) {
@@ -96,34 +99,10 @@ void generate_hmm(gsl_rng * rng, HMM * hmm, int n_data, int length, int nx) {
 		sig_theta = sigmoid(theta, upper_bound, lower_bound);
 		gamma_theta = gamma_of_k * pow(sig_theta, k);
 		solve(k, sig_theta, nx, xs, Z_x, h, dx, q0_sq, gamma_theta);
-		for (int i = 0; i < 10; i++)
-			printf("%lf %lf\n", h[obs_pos], gsl_ran_gaussian(rng, obs_sd));
+		// for (int i = 0; i < 10; i++)
+			// printf("%lf %lf\n", h[obs_pos], gsl_ran_gaussian(rng, obs_sd));
 		obs = h[obs_pos] + gsl_ran_gaussian(rng, obs_sd);
 		fprintf(DATA_OUT, "%e %e\n", sig_theta, obs);
-
-		// double true_soln = h[obs_pos];
-		// gen_Z_topography(xs, Z, nx, k, sig_theta);
-		// for (int j = 0; j < nx; j++) {
-		// 	fprintf(CURVE_DATA, "%e ", h[j]);
-		// 	fprintf(TOP_DATA, "%e ", Z[j]);
-		// }
-		// fprintf(CURVE_DATA, "\n");
-		// fprintf(TOP_DATA, "\n");
-
-		// EY = 0.0, varY = 0.0;
-		// for (int i = 0; i < N; i++) {
-		// 	thetas[i] = 0.9999 * theta + gsl_ran_gaussian(rng0, sig_sd);
-		// 	sig_theta = sigmoid(thetas[i], upper_bound, lower_bound);
-		// 	gamma_theta = gamma_of_k * pow(sig_theta, k);
-		// 	solve(k, sig_theta, nx, xs, Z_x, h, dx, q0_sq, gamma_theta);
-		// 	solns[i] = h[obs_pos];
-		// 	EY += solns[i] / (double) N;
-		// }
-		// for (int i = 0; i < N; i++)
-		// 	varY += (solns[i] - EY) * (solns[i] - EY);
-		// varY = sqrt(varY / (double) (N - 1));
-		// top_varY += varY;
-		// printf("(signal, true obs, sample_mean, sample_obs_sd) = (%lf, %lf, %lf, %lf)\n", theta, true_soln, EY, varY);
 
 		/* Evolve the signal with the mutation model */
 		theta = 0.9999 * theta + gsl_ran_gaussian(rng, sig_sd);
@@ -196,7 +175,6 @@ void run_reference_filter(gsl_rng * rng, HMM * hmm, int N_ref, w_double ** weigh
 	for (int n = 0; n < hmm->length; n++)
 		qsort(weighted_ref[n], N_ref, sizeof(w_double), weighted_double_cmp);
 	output_cdf(weighted_ref, hmm, N_ref, ref_name);
-
 }
 
 
@@ -240,10 +218,14 @@ void read_cdf(w_double ** w_particles, HMM * hmm, int n_data) {
 }
 
 
-double perform_BPF_trials(HMM * hmm, int N_bpf, gsl_rng * rng, int N_trials, int N_ref, w_double ** weighted_ref, int n_data, FILE * RAW_BPF_TIMES, FILE * RAW_BPF_KS, FILE * RAW_BPF_MSE) {
+double perform_BPF_trials(HMM * hmm, int N_bpf, gsl_rng * rng, int N_trials, int N_ref, w_double ** weighted_ref, int n_data, FILE * RAW_BPF_TIMES, FILE * RAW_BPF_KS, FILE * RAW_BPF_MSE, FILE * BPF_CENTILE_MSE) {
 
 	int length = hmm->length;
-	double ks = 0.0, elapsed = 0.0, mse = 0.0, mean_elapsed = 0.0;
+	double centile = 0.95;
+	double ks = 0.0, elapsed = 0.0, mse = 0.0, mean_elapsed = 0.0, q_mse = 0.0;
+	double * ref_centiles = (double *) malloc(length * sizeof(double));
+	compute_nth_percentile(weighted_ref, N_ref, centile, length, ref_centiles);	
+	double * bpf_centiles = (double *) malloc(length * sizeof(double));
 	w_double ** weighted = (w_double **) malloc(length * sizeof(w_double *));
 	for (int n = 0; n < length; n++)
 		weighted[n] = (w_double *) malloc(N_bpf * sizeof(w_double));
@@ -265,6 +247,11 @@ double perform_BPF_trials(HMM * hmm, int N_bpf, gsl_rng * rng, int N_trials, int
 		}
 
 		mse = compute_mse(weighted_ref, weighted, length, N_ref, N_bpf);
+		compute_nth_percentile(weighted, N_bpf, centile, length, bpf_centiles);
+		q_mse = 0.0;
+		for (int n = 0; n < length; n++)
+			q_mse += (ref_centiles[n] - bpf_centiles[n]) * (ref_centiles[n] - bpf_centiles[n]);
+		fprintf(BPF_CENTILE_MSE, "%e ", sqrt(q_mse / (double) length));
 		fprintf(RAW_BPF_TIMES, "%e ", elapsed);
 		fprintf(RAW_BPF_KS, "%e ", ks);
 		fprintf(RAW_BPF_MSE, "%e ", mse);
@@ -276,6 +263,8 @@ double perform_BPF_trials(HMM * hmm, int N_bpf, gsl_rng * rng, int N_trials, int
 	fprintf(RAW_BPF_MSE, "\n");
 	
 	free(weighted);
+	free(ref_centiles);
+	free(bpf_centiles);
 
 	return mean_elapsed / (double) N_trials;
 
@@ -283,7 +272,6 @@ double perform_BPF_trials(HMM * hmm, int N_bpf, gsl_rng * rng, int N_trials, int
 
 
 void compute_sample_sizes(HMM * hmm, gsl_rng * rng, int * level0_meshes, double T, int ** N0s, int * N1s, int N_bpf, int N_trials, w_double ** ml_weighted) {
-
 
 	/* Variables to compute the sample sizes */
 	/* ------------------------------------- */
@@ -496,13 +484,43 @@ double compute_mse(w_double ** weighted1, w_double ** weighted2, int length, int
 }
 
 
+void compute_nth_percentile(w_double ** distr, int N, double centile, int length, double * centiles) {
+
+	/* We first need to ascending sort the distribution by particle value */
+	// for (int n = 0; n < length; n++)
+		// quicksort(distr[n], 0, N - 1);
+
+	/* Now we can find the desired percentile */
+	int i;
+	double x_centile, cum_prob;
+	for (int n = 0; n < length; n++) {
+		i = 0;
+		cum_prob = 0.0;
+		while (cum_prob < centile) {
+			x_centile = distr[n][i].x;
+			cum_prob += distr[n][i].w;
+			i++;
+		}
+		centiles[n] = x_centile;
+	}
+}
 
 
+		// double true_soln = h[obs_pos];
+		// gen_Z_topography(xs, Z, nx, k, sig_theta);
+		// for (int j = 0; j < nx; j++) {
+		// 	fprintf(CURVE_DATA, "%e ", h[j]);
+		// 	fprintf(TOP_DATA, "%e ", Z[j]);
+		// }
+		// fprintf(CURVE_DATA, "\n");
+		// fprintf(TOP_DATA, "\n");
 
 		// EY = 0.0, varY = 0.0;
 		// for (int i = 0; i < N; i++) {
-		// 	thetas[i] = 0.9999 * theta + gsl_ran_gaussian(rng, sig_sd);
-		// 	solve(k, sigmoid(thetas[i], upper_bound, lower_bound), nx, xs, Z_x, h, dx, q0_sq, gamma_of_k);
+		// 	thetas[i] = 0.9999 * theta + gsl_ran_gaussian(rng0, sig_sd);
+		// 	sig_theta = sigmoid(thetas[i], upper_bound, lower_bound);
+		// 	gamma_theta = gamma_of_k * pow(sig_theta, k);
+		// 	solve(k, sig_theta, nx, xs, Z_x, h, dx, q0_sq, gamma_theta);
 		// 	solns[i] = h[obs_pos];
 		// 	EY += solns[i] / (double) N;
 		// }
@@ -513,10 +531,61 @@ double compute_mse(w_double ** weighted1, w_double ** weighted2, int length, int
 		// printf("(signal, true obs, sample_mean, sample_obs_sd) = (%lf, %lf, %lf, %lf)\n", theta, true_soln, EY, varY);
 
 
-		// for (int j = 0; j < nx; j++) {
-			// fprintf(CURVE_DATA, "%e ", h[j]);
-			// fprintf(TOP_DATA, "%e ", Z[j]);
-		// }
-		// fprintf(CURVE_DATA, "\n");
-		// fprintf(TOP_DATA, "\n");
+// double partition(w_double * distr, int lo, int hi) {
+
+// 	/** 
+// 	 * Divides array into two partitions
+// 	 * */
+// 	double pivot = distr[hi].x;	// Choose the last element as the pivot
+// 	double x_temp, w_temp;
+
+// 	// Temporary pivot index
+// 	int i = lo - 1;
+
+// 	for (int j = lo; j < hi; j++) {
+// 		// If the current element is less than or equal to the pivot
+// 		if (distr[j].x <= pivot) {
+// 			// Move the temporary pivot index forward
+// 			i++;
+
+// 			// Swap the current element with the element at the temporary pivot index
+// 			x_temp = distr[i].x, w_temp = distr[i].w;
+// 			distr[i].x = distr[j].x, distr[i].w = distr[j].w;
+// 			distr[j].x = x_temp, distr[j].w = w_temp;
+// 		}
+// 	}
+// 	// Move the pivot element to the correct pivot position (between the smaller and larger elements)
+// 	i++;
+// 	x_temp = distr[i].x, w_temp = distr[i].w;
+// 	distr[i].x = distr[hi].x, distr[i].w = distr[hi].w;
+// 	distr[hi].x = x_temp, distr[hi].w = w_temp;
+
+// 	return i; // the pivot index
+// }
+
+
+// int quicksort(w_double * distr, int lo, int hi) {
+
+// 	/**
+// 	 * Sorts a (portion of an) array, divides it into portions, then sorts those
+// 	*/
+
+// 	// Ensure indices are in correct order
+// 	if (lo >= hi || lo < 0)
+// 		return 0;
+
+// 	else {
+
+// 		// Partition the array and get the pivot index
+// 		double p = partition(distr, lo, hi);
+
+// 		// Sort the two partitions
+// 		quicksort(distr, lo, p - 1); // Left side of pivot
+// 		quicksort(distr, p + 1, hi); // Right side of pivot
+
+// 		return 1;
+// 	}
+
+// }
+
 

@@ -6,6 +6,12 @@ hmm_data_f = open("hmm_data.txt", "r")
 l1_fine_f = open("level1_fine.txt", "r")
 l1_coarse_f = open("level1_coarse.txt", "r")
 l0_coarse_f = open("level0_coarse.txt", "r")
+bpf_centiles_mse_f = open("bpf_centile_mse.txt", "r")
+mlbpf_centiles_mse_f = open("mlbpf_centile_mse.txt", "r")
+bpf_distr_f = open("bpf_distr.txt", "r")
+
+bpf_centiles_mse = list(map(float, bpf_centiles_mse_f.readline().split()))
+mlbpf_centiles_mse = list(map(float, mlbpf_centiles_mse_f.readline().split()))
 
 
 # Read in the HMM data #
@@ -18,8 +24,13 @@ k_parameter = float(hmm_data_f.readline())
 h0, q0 = list(map(float, hmm_data_f.readline().split()))
 lb, up = list(map(float, hmm_data_f.readline().split()))
 signal = np.empty(length); obs = np.empty(length)
-for n in range(length):
-	signal[n], obs[n] = list(map(float, hmm_data_f.readline().split()))
+xs, ws = [], []
+N_bpf = 2000
+for n in range(length * N_bpf):
+	x, w = list(map(float, bpf_distr_f.readline().split()))
+	xs.append(x); ws.append(w)
+bpf_distr_x = np.array(xs).reshape((length, N_bpf))
+bpf_distr_w = np.array(ws).reshape((length, N_bpf))
 
 
 # Read in the likelihood data #
@@ -71,7 +82,10 @@ for n in range(length):
 	# axs[n].vlines(l0_h0[n], 0, l0_g0[n], lw=1, label=r"$\tilde{\pi}^0$", alpha=0.15, color="mediumseagreen")
 	# axs[n].vlines(l1_h1[n], 0, l1_g0[n], lw=1, alpha=0.75, color="mediumseagreen")
 	# axs[n].vlines(l1_h1[n], 0, l1_g1[n], lw=1, label=r"$\tilde{\pi}^1$", alpha=0.75, color="cornflowerblue")
-	axs[n].vlines(l1_h1[n], 0, l1_g1[n] - l1_g0[n], lw=1, label=r"$\tilde{\pi}^1$", alpha=0.75, color="cornflowerblue")
+	# axs[n].vlines(l1_h1[n], 0, l1_g1[n] - l1_g0[n], lw=1, label=r"$\tilde{\pi}^1$", alpha=0.75, color="cornflowerblue")
+
+	# axs[n].vlines(bpf_distr_x[n], 0, bpf_distr_w[n], lw=1, alpha=0.75)
+	# axs[n].vlines(bpf_centiles_mse[n], 0, 0.0006, lw=1.5, color="red")
 
 	# axs.vlines(l0_h0, 0, l0_g0, lw=1, label=r"$\tilde{\pi}^0$", alpha=0.15, color="mediumseagreen")
 	# axs.vlines(l1_h1, 0, l1_g0, lw=1, alpha=0.15, color="mediumseagreen")

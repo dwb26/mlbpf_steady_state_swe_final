@@ -16,6 +16,8 @@ raw_times = open("raw_times.txt", "r")
 N1s_data = open("N1s_data.txt", "r")
 alloc_counters_f = open("alloc_counters.txt", "r")
 ref_stds_f = open("ref_stds.txt", "r")
+bpf_centile_mse_f = open("bpf_centile_mse.txt", "r")
+mlbpf_centile_mse_f = open("mlbpf_centile_mse.txt", "r")
 
 
 
@@ -57,53 +59,79 @@ bpf_median_rmse_log10 = np.median(np.log10(bpf_rmse))
 bpf_mean_ks_log10 = np.mean(np.log10(bpf_ks))
 bpf_median_ks_log10 = np.median(np.log10(bpf_ks))
 ref_stds = np.array(list(map(float, ref_stds_f.readline().split())))
+bpf_centile_mse = np.array(list(map(float, bpf_centile_mse_f.readline().split())))
 
 
 
 # ------------------------------------------- Multilevel parameters ------------------------------------------------- #
 # ------------------------------------------------------------------------------------------------------------------- #
-# level0s = list(map(int, ml_parameters.readline().split()))
 N1s = list(map(int, N1s_data.readline().split()))
 alloc_counters = np.array(list(map(int, alloc_counters_f.readline().split())))
 max_allocs = np.max(alloc_counters)
 mse_arr = np.zeros((N_MESHES, N_ALLOCS, N_data * N_trials))
+rmse_arr = np.zeros((N_MESHES, N_ALLOCS, N_data * N_trials))
 ks_arr = np.zeros((N_MESHES, N_ALLOCS, N_data * N_trials))
 srs_arr = np.zeros((N_MESHES, N_ALLOCS, N_data * N_trials))
-glob_min = 100
-glob_max = -100
+mlbpf_centile_mse_arr = np.zeros((N_MESHES, N_ALLOCS, N_data * N_trials))
+N_NaNs = np.zeros((N_MESHES, N_ALLOCS))
+ks_glob_min = 100000
+ks_glob_max = -100000
 eps = 1e-06
+
+# Data read #
+# --------- #
 for i_mesh in range(N_MESHES):
 	for n_alloc in range(N_ALLOCS):
 		mse_arr[i_mesh, n_alloc, :] = list(map(float, raw_mse.readline().split()))
 		ks_arr[i_mesh, n_alloc, :] = list(map(float, raw_ks.readline().split()))
 		srs_arr[i_mesh, n_alloc, :] = list(map(float, raw_srs.readline().split()))
-		# for x in mse_arr[i_mesh, n_alloc, :]:
+		mlbpf_centile_mse_arr[i_mesh, n_alloc, :] = list(map(float, mlbpf_centile_mse_f.readline().split()))
+
+		# KS data read
 		for x in ks_arr[i_mesh, n_alloc, :]:
 			if not np.abs(x - -1) < eps and not np.abs(x - -2) < eps:
-				if x < glob_min:
-					glob_min = x
-				if x > glob_max:
-					glob_max = x
-glob_min = np.log10(glob_min)
-glob_max = np.log10(glob_max)
-N_NaNs = np.zeros((N_MESHES, N_ALLOCS))
-for n_trial in range(N_trials * N_data):
-	for i_mesh in range(N_MESHES):
-		for n_alloc in range(N_ALLOCS):
+				if x < ks_glob_min:
+					ks_glob_min = x
+				if x > ks_glob_max:
+					ks_glob_max = x
 
+		# MSE and RMSE data read
+		c = 0
+		for x in mse_arr[i_mesh, n_alloc, :]:
+			rmse_arr[i_mesh, n_alloc, c] = np.sqrt(x)
+			c += 1
+
+# NaN handling #
+# ------------ #
+ks_glob_min = np.log10(ks_glob_min)
+ks_glob_max = np.log10(ks_glob_max)
+for i_mesh in range(N_MESHES):
+	for n_alloc in range(N_ALLOCS):
+		for n_trial in range(N_trials * N_data):
+
+			# KS NaN handling
 			# Set these to NaNs because of the N1 allocation expiration
-			# if np.abs(mse_arr[i_mesh, n_alloc, n_trial] - -1) < eps:
 			if np.abs(ks_arr[i_mesh, n_alloc, n_trial] - -1) < eps:
-				# mse_arr[i_mesh, n_alloc, n_trial] = float("NaN")
 				ks_arr[i_mesh, n_alloc, n_trial] = float("NaN")
 
 			# Set these to NaNs because of the results
-			# if np.abs(mse_arr[i_mesh, n_alloc, n_trial] - -2) < eps:
 			if np.abs(ks_arr[i_mesh, n_alloc, n_trial] - -2) < eps:
-				N_NaNs[i_mesh, n_alloc] += 1
-				# mse_arr[i_mesh, n_alloc, n_trial] = float("NaN")
 				ks_arr[i_mesh, n_alloc, n_trial] = float("NaN")
-rmse_arr = np.sqrt(mse_arr)
+				N_NaNs[i_mesh, n_alloc] += 1
+
+			# MSE and RMSE NaN handling
+			# Set these to NaNs because of the N1 allocation expiration
+			if np.abs(mse_arr[i_mesh, n_alloc, n_trial] - -1) < eps:
+				mse_arr[i_mesh, n_alloc, n_trial] = float("NaN")
+				rmse_arr[i_mesh, n_alloc, n_trial] = float("NaN")
+
+			# Set these to NaNs because of the results
+			if np.abs(mse_arr[i_mesh, n_alloc, n_trial] - -2) < eps:
+				mse_arr[i_mesh, n_alloc, n_trial] = float("NaN")
+				rmse_arr[i_mesh, n_alloc, n_trial] = float("NaN")
+
+			if np.abs(mlbpf_centile_mse_arr[i_mesh, n_alloc, n_trial] - -1) < eps:
+				mlbpf_centile_mse_arr[i_mesh, n_alloc, n_trial] = float("NaN")
 
 
 
@@ -116,10 +144,11 @@ colors = ["orchid", "mediumpurple", "royalblue", "powderblue", "mediumseagreen",
 fig_width = 8; fig_height = 7
 hspace = 0.9
 fig1, axs = plt.subplots(nrows=N_MESHES, ncols=1, figsize=(fig_width, fig_height))
-fig2, axs2 = plt.subplots(nrows=2, ncols=1, figsize=(fig_width, fig_height))
+fig2, axs2 = plt.subplots(nrows=3, ncols=1, figsize=(fig_width, fig_height))
+fig3, axs3 = plt.subplots(nrows=1, ncols=1, figsize=(fig_width, fig_height))
 fig1.subplots_adjust(hspace=hspace)
 fig1.suptitle(r"N_data = {}, N_trials = {}, nx = {}, N_bpf = {}, $\sigma_{} = {}$, $\sigma_{} = {}$, len = {}".format(N_data, N_trials, nx, N_bpf, "s", sig_sd, "o", obs_sd, length))
-fig2.subplots_adjust(hspace=0.2)
+fig2.subplots_adjust(hspace=0.4)
 fig2.suptitle(r"N_data = {}, N_trials = {}, nx = {}, N_bpf = {}, $\sigma_{} = {}$, $\sigma_{} = {}$, len = {}".format(N_data, N_trials, nx, N_bpf, "s", sig_sd, "o", obs_sd, length))
 
 
@@ -136,7 +165,7 @@ if N_MESHES > 1:
 		ax = sns.boxplot(data=pd.DataFrame(np.log10(ks_arr[i_mesh].T), columns=N1s), ax=axs[i_mesh], color=colors[i_mesh], whis=1000)
 		ax.plot(range(max_allocs), bpf_median_ks_log10 * np.ones(max_allocs), color="limegreen", label="BPF KS")
 		ax.set_title("Level 0 mesh size = {}".format(level0s[i_mesh]), fontsize=9)
-		# ax.set(ylim=(glob_min, glob_max))
+		# ax.set(ylim=(ks_glob_min, ks_glob_max))
 		if i_mesh == N_MESHES - 1:
 			ax.set_xlabel(r"$N_1$")
 		if i_mesh < N_MESHES - 1:
@@ -149,7 +178,7 @@ else:
 		ax.plot(range(max_allocs), bpf_median_ks_log10 * np.ones(max_allocs), color="limegreen", label="BPF KS")
 		# ax.plot(range(max_allocs), bpf_median_ks_log10 * np.ones(max_allocs), "ro", label="BPF KS")
 		ax.set_title("Level 0 mesh size = {}".format(level0s[i_mesh]), fontsize=9)
-		# ax.set(ylim=(glob_min, glob_max))
+		# ax.set(ylim=(ks_glob_min, ks_glob_max))
 		if i_mesh == N_MESHES - 1:
 			ax.set_xlabel(r"$N_1$")
 
@@ -157,22 +186,23 @@ else:
 
 # ------------------------------------------------------------------------------------------------------------------- #
 #
-# Mean MSE from reference point estimates
+# Mean RMSE from reference point estimates
 #
 # ------------------------------------------------------------------------------------------------------------------- #
-# axs2[0].set_title("log10(Mean MSE)", fontsize=9)
-# axs2[0].plot(N1s[:max_allocs], bpf_mean_mse_log10 * np.ones(max_allocs), color="black", label="BPF")
-# for i_mesh in range(N_MESHES):
-# 	mses = mse_arr[i_mesh].T
-# 	means = []
-# 	for n_alloc in range(alloc_counters[i_mesh]):
-# 		mses_new = []
-# 		for x in mses[:, n_alloc]:
-# 			if not pd.isna(x):
-# 				mses_new.append(x)
-# 		means.append(np.mean(np.log10(mses_new)))
-# 	# axs2[0].plot(N1s[:alloc_counters[i_mesh]], np.mean(np.log10(mse_arr[i_mesh].T), axis=0), label=level0s[i_mesh], marker="o", color=colors[i_mesh], markersize=3)
-# 	axs2[0].plot(N1s[:alloc_counters[i_mesh]], means, label=level0s[i_mesh], marker="o", color=colors[i_mesh], markersize=3)
+axs2[0].set_title("Mean(log10(RMSE))", fontsize=9)
+axs2[0].plot(N1s[:max_allocs], bpf_mean_rmse_log10 * np.ones(max_allocs), color="black", label="BPF")
+for i_mesh in range(N_MESHES):
+	rmses = rmse_arr[i_mesh].T
+	means = []
+	for n_alloc in range(alloc_counters[i_mesh]):
+		rmses_new = []
+		for x in rmses[:, n_alloc]:
+			if not pd.isna(x):
+				rmses_new.append(x)
+		means.append(np.mean(np.log10(rmses_new)))
+	# axs2[0].plot(N1s[:alloc_counters[i_mesh]], np.mean(np.log10(mse_arr[i_mesh].T), axis=0), label=level0s[i_mesh], marker="o", color=colors[i_mesh], markersize=3)
+	axs2[0].plot(N1s[:alloc_counters[i_mesh]], means, label=level0s[i_mesh], marker="o", color=colors[i_mesh], markersize=3)
+axs2[0].legend()
 # axs2[0].set_xticks([])
 
 
@@ -204,43 +234,26 @@ else:
 # KS statistics from the reference distribution
 #
 # ------------------------------------------------------------------------------------------------------------------- #
-axs2[0].set_title("(Median log10(KS statistics))", fontsize=9)
-axs2[0].plot(N1s[:max_allocs], bpf_median_ks_log10 * np.ones(max_allocs), color="black", label="BPF")
+axs2[1].set_title("Median(log10(KS statistics))", fontsize=9)
+axs2[1].plot(N1s[:max_allocs], bpf_median_ks_log10 * np.ones(max_allocs), color="black", label="BPF")
 for i_mesh in range(N_MESHES):
-	axs2[0].plot(N1s[:alloc_counters[i_mesh]], np.median(np.log10(ks_arr[i_mesh, :alloc_counters[i_mesh], :].T), axis=0), label=level0s[i_mesh], marker="o", color=colors[i_mesh], markersize=3)
-# axs2[0].plot(N1s[:alloc_counters[N_MESHES - 1]], np.median(np.log10(ks_arr[N_MESHES - 1, :alloc_counters[N_MESHES - 1], :].T), axis=0), label=level0s[i_mesh], marker="o", color=colors[i_mesh], markersize=3)
+	axs2[1].plot(N1s[:alloc_counters[i_mesh]], np.median(np.log10(ks_arr[i_mesh, :alloc_counters[i_mesh], :].T), axis=0), label=level0s[i_mesh], marker="o", color=colors[i_mesh], markersize=3)
+# axs2[1].set_xticks([])
+# axs2[1].legend()
+
+
+
+# ------------------------------------------------------------------------------------------------------------------- #
+#
+# Quantile RMSE estimation
+#
+# ------------------------------------------------------------------------------------------------------------------- #
+axs2[2].set_title("Quantile RMSE estimation", fontsize=9)
+axs2[2].plot(N1s[:max_allocs], np.mean(np.log10(bpf_centile_mse)) * np.ones(max_allocs), color="black", label="BPF")
+for i_mesh in range(N_MESHES):
+	axs2[2].plot(N1s[:alloc_counters[i_mesh]], np.mean(np.log10(mlbpf_centile_mse_arr[i_mesh, :alloc_counters[i_mesh], :].T), axis=0), label=level0s[i_mesh], marker="o", color=colors[i_mesh], markersize=3)
 # axs2[0].set_xticks([])
-axs2[0].legend()
-
-
-
-# ------------------------------------------------------------------------------------------------------------------- #
-#
-# Sign ratios
-#
-# ------------------------------------------------------------------------------------------------------------------- #
-# axs2[1].set_title("Mean sign ratios", fontsize=9)
-# for i_mesh in range(N_MESHES):
-#     # mean_srs = np.mean(srs_arr[i_mesh, :alloc_counters[i_mesh], :].T, axis=0)
-#     mean_srs = np.mean(srs_arr[i_mesh], axis=1)
-#     # print(srs_arr[i_mesh][0][:])
-#     axs2[1].plot(N1s[0:12], mean_srs, label=level0s[i_mesh], marker="o", color=colors[i_mesh], markersize=3)
-# axs2[1].set_xlabel("N1")
-# axs2[2].legend(loc=3, prop={'size': 8})
-
-
-
-# ------------------------------------------------------------------------------------------------------------------- #
-#
-# NaN ratios
-#
-# ------------------------------------------------------------------------------------------------------------------- #
-# N_total = N_data * N_trials
-# axs2[1].set_title("Proportion of NaNs", fontsize=9)
-# for i_mesh in range(N_MESHES):
-#     axs2[1].plot(N1s[:alloc_counters[i_mesh]], N_NaNs[i_mesh, :alloc_counters[i_mesh]] / N_total, label=level0s[i_mesh], marker="o", color=colors[i_mesh], markersize=3)
-# axs2[1].set_xlabel(r"$N_1$")
-# axs2[1].legend(loc=1)
+# axs2[2].legend()
 
 
 
@@ -264,10 +277,10 @@ axs2[0].legend()
 # ------------------------------------------------------------------------------------------------------------------- #
 times_list = np.array(list(map(float, raw_times.readline().split())))
 total_time_length = len(times_list)
-axs2[1].set_title("Trial times", fontsize=9)
-axs2[1].plot(range(total_time_length), np.array(times_list).flatten(), linewidth=0.5)
-axs2[1].plot(range(total_time_length), np.mean(bpf_times) * np.ones(total_time_length), label="bpf mean", color="black")
-axs2[1].set_xlabel("Trial")
+axs3.set_title("Trial times", fontsize=9)
+axs3.plot(range(total_time_length), np.array(times_list).flatten(), linewidth=0.5)
+axs3.plot(range(total_time_length), np.mean(bpf_times) * np.ones(total_time_length), label="bpf mean", color="black")
+axs3.set_xlabel("Trial")
 
 plt.tight_layout()
 plt.show()
