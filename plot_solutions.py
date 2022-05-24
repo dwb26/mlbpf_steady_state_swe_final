@@ -32,7 +32,7 @@ for line in top_data_f:
 	n += 1
 surface_level = curves + Z
 
-fig, axs = plt.subplots(nrows=2, ncols=4, figsize=(15, 7))
+fig, axs = plt.subplots(nrows=2, ncols=4, figsize=(15, 10))
 fig.subplots_adjust(hspace=0.4)
 m = 0
 surface_max = np.max(surface_level)
@@ -43,14 +43,15 @@ start_point = 0
 for k in range(start_point, start_point + custm_length):
 	n = k - start_point
 	axs[m, n % 4].plot(xs, Z[k], color="black", label="Z")
-	axs[m, n % 4].plot(xs, curves[k], color="green", label="h")
+	axs[m, n % 4].plot(xs, curves[k] + Z[k], color="blue", label="h")
 	# axs[m, n % 4].plot(xs, surface_level[k], color="blue", label="h + Z")
 	# axs[m, n % 4].set(ylim=(Z_min - 0.1, curve_max + -Z_min / 10))
-	axs[m, n % 4].set_title(r"$\theta_{} = {:.5f}$, $y_{} = {:.2f}$".format(k, thetas[k], k, obs[k]))
+	axs[m, n % 4].set_title(r"$\theta_{} = {:.2f}$, $y_{} = {:.2f}$".format(k, thetas[k], k, obs[k]))
 	axs[m, n % 4].set_xlabel("x")
+	axs[m, n % 4].set(ylim=(np.min(Z) - 1, np.max(curves + Z) + 1))
 	if (n + 1) %  4 == 0:
 		m += 1
 	if n == 0:
 		axs[0, 0].legend()
-plt.suptitle(r"Steady state ODE solutions with random walk scale parameter $\theta$ and shape k = {}".format(k))
+plt.suptitle(r"Steady state SWE ODE solutions", fontsize=18)
 plt.show()

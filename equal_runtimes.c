@@ -16,7 +16,7 @@
 const int N_TOTAL_MAX = 100000000;
 const int N_LEVELS = 2;
 const int N_ALLOCS = 7;
-const int N_MESHES = 5;
+const int N_MESHES = 8;
 // const int N_ALLOCS = 1;
 // const int N_MESHES = 1;
 
@@ -46,22 +46,30 @@ int main(void) {
 	/* -------------------------- */
 	int N_data = 1;
 	int N_trials = 25;
-	// int length = 2, nx = 400;
-	int length = 4, nx = 250;
-	int N_ref = 2500000;
-	// int N_bpf = 10000;
-	int N_bpf = 15000;
+	int length = 10, nx = 500;
+	int N_ref = 500000;
+	int N_bpf = 1000;
+	// int N_bpf = 2500;
 	// int N_bpf = 5000;
+	// int N_bpf = 10000;
+	// int N_bpf = 15000;	
 	// int level0_meshes[N_MESHES] = { 300, 200, 150, 100, 50, 25 };
-	// int level0_meshes[N_MESHES] = { 200 };
-	int level0_meshes[N_MESHES] = { 200, 150, 100, 50, 25 };
-	// int N1s[N_ALLOCS] = { 0, 100, 600, 1200, 1500, 1800, 2100, 2495 };
-	// int N1s[N_ALLOCS] = { 0, 100, 250, 500, 750, 1000 };
-	// int N1s[N_ALLOCS] = { 0, 100, 250, 500, 750, 1200, 1500, 1800 };
-	// int N1s[N_ALLOCS] = { 0, 1000, 2000, 3000, 4000, 5000 };
-	int N1s[N_ALLOCS] = { 0, 100, 500, 1000, 2000, 4000, 8000 };
-	// int level0_meshes[N_MESHES] = { 248 }; // was 150
-	// int N1s[N_ALLOCS] = { 60 };
+	// int level0_meshes[N_MESHES] = { 200, 150, 100, 50 };
+	// int level0_meshes[N_MESHES] = { 80, 60, 40, 25 };
+	// int level0_meshes[N_MESHES] = { 750, 500, 250, 200, 150, 100, 50 };
+	// int level0_meshes[N_MESHES] = { 175, 125, 100, 75, 50 };
+	int level0_meshes[N_MESHES] = { 350, 250, 200, 150, 125, 100, 75, 50 }; ///
+	// int level0_meshes[N_MESHES] = { 650, 450, 250, 125, 75 };
+	// int level0_meshes[N_MESHES] = { 650 };
+	int N1s[N_ALLOCS] = { 0, 50, 120, 250, 500 }; ///
+	// int N1s[N_ALLOCS] = { 0, 50 };
+	// int N1s[N_ALLOCS] = { 0, 125, 250, 500, 1000 };
+	// int N1s[N_ALLOCS] = { 0, 125, 250, 500, 1000, 1500, 2000 };
+	// int N1s[N_ALLOCS] = { 0, 100, 200, 300, 400, 500, 600, 700, 800, 900 };
+	// int N1s[N_ALLOCS] = { 0, 100, 250, 500, 1000, 2500, 5000 };
+	// int N1s[N_ALLOCS] = { 0, 25, 50, 100 };
+	// int level0_meshes[N_MESHES] = { 100 };
+	// int N1s[N_ALLOCS] = { 500 };
 	int nxs[N_LEVELS] = { 0, nx };
 	int ** N0s = (int **) malloc(N_MESHES * sizeof(int *));	
 	int * sample_sizes = (int *) malloc(N_LEVELS * sizeof(int));
@@ -102,7 +110,6 @@ int main(void) {
 	FILE * RAW_MSE = fopen("raw_mse.txt", "w");
 	FILE * RAW_SRS = fopen("raw_srs.txt", "w");
 	FILE * ALLOC_COUNTERS = fopen("alloc_counters.txt", "w");
-	FILE * L2_ERR_DATA = fopen("l2_err_data.txt", "w");
 	FILE * REF_STDS = fopen("ref_stds.txt", "w");
 	FILE * FULL_HMM_DATA = fopen("full_hmm_data.txt", "w");
 	FILE * FULL_REF_DATA = fopen("full_ref_data.txt", "w");
@@ -146,7 +153,9 @@ int main(void) {
 				printf("**********************************************************\n");
 
 				nxs[0] = level0_meshes[i_mesh];
-				N1 = N1s[n_alloc], N0 = N0s[i_mesh][n_alloc], N_tot = N0 + N1;
+				N1 = N1s[n_alloc], N0 = N0s[i_mesh][n_alloc];
+				// N0 = 25; N1 = 15;
+				N_tot = N0 + N1;
 				sample_sizes[0] = N0, sample_sizes[1] = N1;
 				alloc_counters[i_mesh] = N_ALLOCS;
 
@@ -194,7 +203,6 @@ int main(void) {
 	fclose(RAW_MSE);
 	fclose(RAW_SRS);
 	fclose(ALLOC_COUNTERS);
-	fclose(L2_ERR_DATA);
 	fclose(REF_STDS);
 	fclose(FULL_HMM_DATA);
 	fclose(FULL_REF_DATA);

@@ -20,8 +20,8 @@
 
 void equal_runtimes_model(gsl_rng * rng, HMM * hmm, int ** N0s, int * N1s, w_double ** weighted_ref, int N_ref, int N_trials, int N_bpf, int * level0_meshes, int n_data, FILE * RAW_BPF_TIMES, FILE * RAW_BPF_KS, FILE * RAW_BPF_MSE, w_double ** ml_weighted, FILE * BPF_CENTILE_MSE)  {
 
-	// int run_ref = 1;		// REF ON
-	int run_ref = 0;		// REF OFF
+	int run_ref = 1;		// REF ON
+	// int run_ref = 0;		// REF OFF
 
 	/* Reference distribution */
 	/* ---------------------- */
@@ -38,7 +38,7 @@ void equal_runtimes_model(gsl_rng * rng, HMM * hmm, int ** N0s, int * N1s, w_dou
 	double T, T_temp;
 	T = perform_BPF_trials(hmm, N_bpf, rng, N_trials, N_ref, weighted_ref, n_data, RAW_BPF_TIMES, RAW_BPF_KS, RAW_BPF_MSE, BPF_CENTILE_MSE);
 	// if (n_data == 0)
-		// compute_sample_sizes(hmm, rng, level0_meshes, 2 * T / (double) hmm->length, N0s, N1s, N_bpf, N_trials, ml_weighted);
+		// compute_sample_sizes(hmm, rng, level0_meshes, T, N0s, N1s, N_bpf, N_trials, ml_weighted);
 	T_temp = read_sample_sizes(hmm, N0s, N1s, N_trials);
 
 }
@@ -50,20 +50,19 @@ void generate_hmm(gsl_rng * rng, HMM * hmm, int n_data, int length, int nx) {
 	Generates the HMM data and outputs to file to be read in by read_hmm.
 	*/
 	int obs_pos = nx - 1;
-	// double sig_sd = 5.5;
-	// double sig_sd = 2.5;
-	double sig_sd = 2.0;
-	// double obs_sd = 0.05 * 0.037881;
+	double sig_sd = 4.0;
+	// double obs_sd = 0.075;
+	double obs_sd = 0.1;
+	// double obs_sd = 0.025;
+	// double obs_sd = 0.075;
 	// double obs_sd = 0.1 * 0.037881;
-	double obs_sd = 0.25 * 0.037881;
-	// double obs_sd = 0.5 * 0.037881;
-	// double obs_sd = 1.0 * 0.037881;
-	// double obs_sd = 1.5 * 0.037881;	
+	// double obs_sd = 0.25;
 	double space_left = 0.0, space_right = 50.0;
 	double dx = (space_right - space_left) / (double) (nx - 1);
 	double k = 3.5, theta, obs;
 	double h_init = 2.0, q0 = 3.0, q0_sq = q0 * q0;	
-	double lower_bound = 1.5, upper_bound = 6.0 + lower_bound;
+	// double lower_bound = 1.5, upper_bound = 6.0 + lower_bound;
+	double lower_bound = 1.5, upper_bound = 8.0 + lower_bound;
 	double Z_obs, gamma_of_k = tgamma(k), gamma_theta, Z_obs_ind, sig_theta = 4.5;
 	double * h = (double *) malloc(nx * sizeof(double));
 	double * Z = (double *) malloc(nx * sizeof(double));
@@ -99,10 +98,19 @@ void generate_hmm(gsl_rng * rng, HMM * hmm, int n_data, int length, int nx) {
 		sig_theta = sigmoid(theta, upper_bound, lower_bound);
 		gamma_theta = gamma_of_k * pow(sig_theta, k);
 		solve(k, sig_theta, nx, xs, Z_x, h, dx, q0_sq, gamma_theta);
-		// for (int i = 0; i < 10; i++)
+		// for (int i = 0; i < 12; i++)
 			// printf("%lf %lf\n", h[obs_pos], gsl_ran_gaussian(rng, obs_sd));
 		obs = h[obs_pos] + gsl_ran_gaussian(rng, obs_sd);
 		fprintf(DATA_OUT, "%e %e\n", sig_theta, obs);
+
+		double true_soln = h[obs_pos];
+		gen_Z_topography(xs, Z, nx, k, sig_theta);
+		for (int j = 0; j < nx; j++) {
+			fprintf(CURVE_DATA, "%e ", h[j]);
+			fprintf(TOP_DATA, "%e ", Z[j]);
+		}
+		fprintf(CURVE_DATA, "\n");
+		fprintf(TOP_DATA, "\n");
 
 		/* Evolve the signal with the mutation model */
 		theta = 0.9999 * theta + gsl_ran_gaussian(rng, sig_sd);
@@ -303,18 +311,25 @@ void compute_sample_sizes(HMM * hmm, gsl_rng * rng, int * level0_meshes, double 
 		nxs[0] = level0_meshes[i_mesh];
 		printf("Computing the level 0 allocations for nx0 = %d\n", nxs[0]);
 
+		for (int n_alloc = 0; n_alloc < N_ALLOCS; n_alloc++)
+			N0s[i_mesh][n_alloc] = (int) (nxs[1] / (double) nxs[0] * N_bpf);
+		printf("Starting guess for N0:\n");
+		printf("%d\n", N0s[i_mesh][0]);
+		printf("\n");
+
 		for (int n_alloc = 0; n_alloc < N_ALLOCS; n_alloc++) {
 
 			sample_sizes[1] = N1s[n_alloc];
 			printf("N1 = %d\n", N1s[n_alloc]);
 
 			N0 = N_bpf;
+			N0 = N0s[i_mesh][n_alloc];
 			sample_sizes[0] = N0;
 			N0_lo = N0;
 
 			/* Find a value for N0_init that exceeds the required time */
 			clock_t timer = clock();
-			ml_bootstrap_particle_filter_timed(hmm, sample_sizes, nxs, rng, ml_weighted, sign_ratios);
+			ml_bootstrap_particle_filter(hmm, sample_sizes, nxs, rng, ml_weighted, sign_ratios);
 			T_mlbpf = (double) (clock() - timer) / (double) CLOCKS_PER_SEC;
 			diff = (T_mlbpf - T) / T;
 			while (diff < 0) {
@@ -322,7 +337,7 @@ void compute_sample_sizes(HMM * hmm, gsl_rng * rng, int * level0_meshes, double 
 				sample_sizes[0] = N0;
 
 				timer = clock();
-				ml_bootstrap_particle_filter_timed(hmm, sample_sizes, nxs, rng, ml_weighted, sign_ratios);
+				ml_bootstrap_particle_filter(hmm, sample_sizes, nxs, rng, ml_weighted, sign_ratios);
 				T_mlbpf = (double) (clock() - timer) / (double) CLOCKS_PER_SEC;
 				diff = (T_mlbpf - T) / T;
 			}
@@ -330,7 +345,7 @@ void compute_sample_sizes(HMM * hmm, gsl_rng * rng, int * level0_meshes, double 
 			/* Find a value for N0_lo that does not meet the required time */
 			sample_sizes[0] = N0_lo;
 			timer = clock();
-			ml_bootstrap_particle_filter_timed(hmm, sample_sizes, nxs, rng, ml_weighted, sign_ratios);
+			ml_bootstrap_particle_filter(hmm, sample_sizes, nxs, rng, ml_weighted, sign_ratios);
 			T_mlbpf = (double) (clock() - timer) / (double) CLOCKS_PER_SEC;
 			diff = (T_mlbpf - T) / T;
 			while (diff > 0) {
@@ -338,7 +353,7 @@ void compute_sample_sizes(HMM * hmm, gsl_rng * rng, int * level0_meshes, double 
 				sample_sizes[0] = N0_lo;
 
 				timer = clock();
-				ml_bootstrap_particle_filter_timed(hmm, sample_sizes, nxs, rng, ml_weighted, sign_ratios);
+				ml_bootstrap_particle_filter(hmm, sample_sizes, nxs, rng, ml_weighted, sign_ratios);
 				T_mlbpf = (double) (clock() - timer) / (double) CLOCKS_PER_SEC;
 				diff = (T_mlbpf - T) / T;
 
@@ -349,7 +364,7 @@ void compute_sample_sizes(HMM * hmm, gsl_rng * rng, int * level0_meshes, double 
 			/* Run with the N0 we know exceeds the required time */
 			sample_sizes[0] = N0;
 			timer = clock();
-			ml_bootstrap_particle_filter_timed(hmm, sample_sizes, nxs, rng, ml_weighted, sign_ratios);
+			ml_bootstrap_particle_filter(hmm, sample_sizes, nxs, rng, ml_weighted, sign_ratios);
 			T_mlbpf = (double) (clock() - timer) / (double) CLOCKS_PER_SEC;
 			diff = (T_mlbpf - T) / T;
 
@@ -359,7 +374,7 @@ void compute_sample_sizes(HMM * hmm, gsl_rng * rng, int * level0_meshes, double 
 			else {
 
 				/* Halve the interval until a sufficiently accurate root is found */
-				while (fabs(diff) >= 0.0001) {
+				while (fabs(diff) >= 0.1) {
 					if (diff > 0)
 						N0 = (int) (0.5 * (N0_lo + N0));
 					else {
@@ -371,7 +386,7 @@ void compute_sample_sizes(HMM * hmm, gsl_rng * rng, int * level0_meshes, double 
 
 					timer = clock();
 					for (int i = 0; i < 1; i++)
-						ml_bootstrap_particle_filter_timed(hmm, sample_sizes, nxs, rng, ml_weighted, sign_ratios);
+						ml_bootstrap_particle_filter(hmm, sample_sizes, nxs, rng, ml_weighted, sign_ratios);
 					T_mlbpf = (double) (clock() - timer) / (double) CLOCKS_PER_SEC;
 					diff = (T_mlbpf - T) / T;
 
@@ -587,5 +602,9 @@ void compute_nth_percentile(w_double ** distr, int N, double centile, int length
 // 	}
 
 // }
+
+
+
+
 
 
