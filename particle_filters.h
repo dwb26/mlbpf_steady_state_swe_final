@@ -32,3 +32,4 @@ double sigmoid(double x, double a, double b);
 double sigmoid_inv(double x, double a, double b);
 void mutate(gsl_rng * rng, int N_tot, double * thetas, double * res_thetas, double sig_sd);
 void ref_bootstrap_particle_filter(HMM * hmm, int N, gsl_rng * rng, w_double ** weighted);
+void bootstrap_particle_filter_var_nx(HMM * hmm, int N, gsl_rng * rng, w_double ** weighted, int nx);

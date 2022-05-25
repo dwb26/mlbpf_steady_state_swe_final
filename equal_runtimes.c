@@ -45,8 +45,8 @@ int main(void) {
 	/* Main experiment parameters */
 	/* -------------------------- */
 	int N_data = 1;
-	int N_trials = 25;
-	int length = 10, nx = 500;
+	int N_trials = 10;
+	int length = 50, nx = 500;
 	int N_ref = 500000;
 	int N_bpf = 1000;
 	// int N_bpf = 2500;
@@ -61,7 +61,7 @@ int main(void) {
 	int level0_meshes[N_MESHES] = { 350, 250, 200, 150, 125, 100, 75, 50 }; ///
 	// int level0_meshes[N_MESHES] = { 650, 450, 250, 125, 75 };
 	// int level0_meshes[N_MESHES] = { 650 };
-	int N1s[N_ALLOCS] = { 0, 50, 120, 250, 500 }; ///
+	int N1s[N_ALLOCS] = { 0, 50, 120, 250, 500, 750, 900 }; ///
 	// int N1s[N_ALLOCS] = { 0, 50 };
 	// int N1s[N_ALLOCS] = { 0, 125, 250, 500, 1000 };
 	// int N1s[N_ALLOCS] = { 0, 125, 250, 500, 1000, 1500, 2000 };
@@ -97,9 +97,11 @@ int main(void) {
 		}
 	}
 	w_double ** weighted_ref = (w_double **) malloc(length * sizeof(w_double *));
+	w_double ** weighted_long = (w_double **) malloc(length * sizeof(w_double *));
 	w_double ** ml_weighted = (w_double **) malloc(length * sizeof(w_double *));
 	for (int n = 0; n < length; n++) {
 		weighted_ref[n] = (w_double *) malloc(N_ref * sizeof(w_double));
+		weighted_long[n] = (w_double *) malloc(N_ref * sizeof(w_double));
 		ml_weighted[n] = (w_double *) malloc(N_TOTAL_MAX * sizeof(w_double));
 	}
 	FILE * RAW_BPF_TIMES = fopen("raw_bpf_times.txt", "w");
@@ -116,7 +118,12 @@ int main(void) {
 	FILE * BPF_CENTILE_MSE = fopen("bpf_centile_mse.txt", "w");
 	FILE * MLBPF_CENTILE_MSE = fopen("mlbpf_centile_mse.txt", "w");
 	output_parameters(N_trials, level0_meshes, nx, N1s, N_data, N_bpf);
-	
+
+	int ML_experiment, BPF_experiment;
+	ML_experiment = 1;
+	// ML_experiment = 0;
+	// BPF_experiment = 1;
+	BPF_experiment = 0;
 
 
 	/* ----------------------------------------------------------------------------------------------------- */
@@ -129,71 +136,101 @@ int main(void) {
 	double * ref_centiles = (double *) malloc(length * sizeof(double));
 	HMM * hmm = (HMM *) malloc(sizeof(HMM));
 	hmm->N_LEVELS = N_LEVELS, hmm->N_MESHES = N_MESHES, hmm->N_ALLOCS = N_ALLOCS;
-	for (int n_data = 0; n_data < N_data; n_data++) {
+	if (ML_experiment == 1) {
 
-		/* Generate the HMM data and run the BPF on it */
-		/* ------------------------------------------- */
-		generate_hmm(rng, hmm, n_data, length, nx);
-		equal_runtimes_model(rng, hmm, N0s, N1s, weighted_ref, N_ref, N_trials, N_bpf, level0_meshes, n_data, RAW_BPF_TIMES, RAW_BPF_KS, RAW_BPF_MSE, ml_weighted, BPF_CENTILE_MSE);
-		record_reference_data(hmm, weighted_ref, N_ref, FULL_HMM_DATA, FULL_REF_DATA, REF_STDS);
-		compute_nth_percentile(weighted_ref, N_ref, centile, length, ref_centiles);
+		for (int n_data = 0; n_data < N_data; n_data++) {
+
+			/* Generate the HMM data and run the BPF on it */
+			/* ------------------------------------------- */
+			generate_hmm(rng, hmm, n_data, length, nx);
+			sr = equal_runtimes_model(rng, hmm, N0s, N1s, weighted_ref, N_ref, N_trials, N_bpf, level0_meshes, n_data, RAW_BPF_TIMES, RAW_BPF_KS, RAW_BPF_MSE, ml_weighted, BPF_CENTILE_MSE);
+			record_reference_data(hmm, weighted_ref, N_ref, FULL_HMM_DATA, FULL_REF_DATA, REF_STDS);
+			compute_nth_percentile(weighted_ref, N_ref, centile, length, ref_centiles);
 
 
-		/* Run the MLBPF for each nx0/particle allocation for the same time as the BPF and test its accuracy */
-		/* ------------------------------------------------------------------------------------------------- */
-		for (int n_alloc = 0; n_alloc < N_ALLOCS; n_alloc++) {
+			/* Run the MLBPF for each nx0/particle allocation for the same time as the BPF and test its accuracy */
+			/* ------------------------------------------------------------------------------------------------- */
+			for (int n_alloc = 0; n_alloc < N_ALLOCS; n_alloc++) {
 
-			printf("--------------\n");
-			printf("|  N1 = %d  |\n", N1s[n_alloc]);
-			printf("--------------\n");
+				printf("--------------\n");
+				printf("|  N1 = %d  |\n", N1s[n_alloc]);
+				printf("--------------\n");
 
-			for (int i_mesh = 0; i_mesh < N_MESHES; i_mesh++) {
+				for (int i_mesh = 0; i_mesh < N_MESHES; i_mesh++) {
 
-				printf("nx0 = %d\n", level0_meshes[i_mesh]);
-				printf("**********************************************************\n");
+					printf("nx0 = %d\n", level0_meshes[i_mesh]);
+					printf("**********************************************************\n");
 
-				nxs[0] = level0_meshes[i_mesh];
-				N1 = N1s[n_alloc], N0 = N0s[i_mesh][n_alloc];
-				// N0 = 25; N1 = 15;
-				N_tot = N0 + N1;
-				sample_sizes[0] = N0, sample_sizes[1] = N1;
-				alloc_counters[i_mesh] = N_ALLOCS;
+					nxs[0] = level0_meshes[i_mesh];
+					N1 = N1s[n_alloc], N0 = N0s[i_mesh][n_alloc];
+					// N0 = 25; N1 = 15;
+					N_tot = N0 + N1;
+					sample_sizes[0] = N0, sample_sizes[1] = N1;
+					alloc_counters[i_mesh] = N_ALLOCS;
 
-				ref_xhat = 0.0, ml_xhat = 0.0;
-				if (N0 == 0) {
-					alloc_counters[i_mesh] = n_alloc;
-					for (int n_trial = 0; n_trial < N_trials; n_trial++) {
-						raw_mse[i_mesh][n_alloc][n_data * N_trials + n_trial] = -1;
-						raw_ks[i_mesh][n_alloc][n_data * N_trials + n_trial] = -1;
-						raw_qmses[i_mesh][n_alloc][n_data * N_trials + n_trial] = -1;
-					}
-				}
-				else {
-					for (int n_trial = 0; n_trial < N_trials; n_trial++) {
-						clock_t trial_timer = clock();
-						ml_bootstrap_particle_filter(hmm, sample_sizes, nxs, rng, ml_weighted, sign_ratios);
-						double elapsed = (double) (clock() - trial_timer) / (double) CLOCKS_PER_SEC;
-
-						ks = 0.0, sr = 0.0, q_mse = 0.0;
-						for (int n = 0; n < length; n++) {
-							qsort(ml_weighted[n], N_tot, sizeof(w_double), weighted_double_cmp);
-							ks += ks_statistic(N_ref, weighted_ref[n], N_tot, ml_weighted[n]) / (double) length;
+					ref_xhat = 0.0, ml_xhat = 0.0;
+					if (N0 == 0) {
+						alloc_counters[i_mesh] = n_alloc;
+						for (int n_trial = 0; n_trial < N_trials; n_trial++) {
+							raw_mse[i_mesh][n_alloc][n_data * N_trials + n_trial] = -1;
+							raw_ks[i_mesh][n_alloc][n_data * N_trials + n_trial] = -1;
+							raw_qmses[i_mesh][n_alloc][n_data * N_trials + n_trial] = -1;
 						}
-						compute_nth_percentile(ml_weighted, N_tot, centile, length, mlbpf_centiles);
-						for (int n = 0; n < length; n++)
-							q_mse += (ref_centiles[n] - mlbpf_centiles[n]) * (ref_centiles[n] - mlbpf_centiles[n]);
-						raw_qmses[i_mesh][n_alloc][n_data * N_trials + n_trial] = sqrt(q_mse / (double) N_trials);
-						raw_mse[i_mesh][n_alloc][n_data * N_trials + n_trial] = compute_mse(weighted_ref, ml_weighted, length, N_ref, N_tot);
-						raw_ks[i_mesh][n_alloc][n_data * N_trials + n_trial] = ks;
-						raw_times[i_mesh][n_alloc][n_data * N_trials + n_trial] = elapsed;
 					}
+					else {
+						for (int n_trial = 0; n_trial < N_trials; n_trial++) {
+							clock_t trial_timer = clock();
+							ml_bootstrap_particle_filter(hmm, sample_sizes, nxs, rng, ml_weighted, sign_ratios);
+							double elapsed = (double) (clock() - trial_timer) / (double) CLOCKS_PER_SEC;
+
+							ks = 0.0, sr = 0.0, q_mse = 0.0;
+							for (int n = 0; n < length; n++) {
+								qsort(ml_weighted[n], N_tot, sizeof(w_double), weighted_double_cmp);
+								ks += ks_statistic(N_ref, weighted_ref[n], N_tot, ml_weighted[n]) / (double) length;
+							}
+							compute_nth_percentile(ml_weighted, N_tot, centile, length, mlbpf_centiles);
+							for (int n = 0; n < length; n++)
+								q_mse += (ref_centiles[n] - mlbpf_centiles[n]) * (ref_centiles[n] - mlbpf_centiles[n]);
+							raw_qmses[i_mesh][n_alloc][n_data * N_trials + n_trial] = sqrt(q_mse / (double) N_trials);
+							raw_mse[i_mesh][n_alloc][n_data * N_trials + n_trial] = compute_mse(weighted_ref, ml_weighted, length, N_ref, N_tot);
+							raw_ks[i_mesh][n_alloc][n_data * N_trials + n_trial] = ks;
+							raw_times[i_mesh][n_alloc][n_data * N_trials + n_trial] = elapsed;
+						}
+					}
+					printf("\n");
 				}
-				printf("\n");
+			}
+		}
+		output_ml_data(hmm, N_trials, raw_times, raw_ks, raw_mse, raw_srs, level0_meshes, N1s, alloc_counters, ALLOC_COUNTERS, RAW_TIMES, RAW_KS, RAW_MSE, RAW_SRS, N_data, MLBPF_CENTILE_MSE, raw_qmses);
+	}
+
+	int N_nxs = 60, nx_incr = 5, N;
+	int * nx_bpfs = (int *) malloc(N_nxs * sizeof(int));
+	double T, T_bin;
+	for (int n = 1; n <= N_nxs; n++)
+		nx_bpfs[n - 1] = nx - n * nx_incr;
+	if (BPF_experiment == 1) {
+
+		for (int n_data = 0; n_data < N_data; n_data++) {
+
+			/* Generate the HMM data and run the BPF with the full nx on it */
+			/* ------------------------------------------------------------ */
+			generate_hmm(rng, hmm, n_data, length, nx);
+			T = equal_runtimes_model(rng, hmm, N0s, N1s, weighted_ref, N_ref, N_trials, N_bpf, level0_meshes, n_data, RAW_BPF_TIMES, RAW_BPF_KS, RAW_BPF_MSE, ml_weighted, BPF_CENTILE_MSE);
+
+			for (int n = 0; n < N_nxs; n++) {
+
+				/* Compute the sample size to run for the same time as the full nx */
+				printf("Computing N for nx = %d...\n", nx_bpfs[n]);
+				N = compute_sample_sizes_bpf(hmm, rng, T, nx_bpfs[n], weighted_long);
+				printf("N = %d\n", N);
+
+				/* Find the accuracy of the BPF run on the lower nx against the reference solution */
+				printf("Running trials for nx = %d...\n", nx_bpfs[n]);
+				perform_BPF_trials_var_nx(hmm, N, rng, N_trials, N_ref, weighted_ref, n_data, RAW_BPF_TIMES, RAW_BPF_KS, RAW_BPF_MSE, BPF_CENTILE_MSE, nx_bpfs[n]);
 			}
 		}
 	}
-
-	output_ml_data(hmm, N_trials, raw_times, raw_ks, raw_mse, raw_srs, level0_meshes, N1s, alloc_counters, ALLOC_COUNTERS, RAW_TIMES, RAW_KS, RAW_MSE, RAW_SRS, N_data, MLBPF_CENTILE_MSE, raw_qmses);
 
 	fclose(RAW_BPF_TIMES);
 	fclose(RAW_BPF_KS);

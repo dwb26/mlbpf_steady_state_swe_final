@@ -752,6 +752,144 @@ void bootstrap_particle_filter(HMM * hmm, int N, gsl_rng * rng, w_double ** weig
 }
 
 
+void bootstrap_particle_filter_var_nx(HMM * hmm, int N, gsl_rng * rng, w_double ** weighted, int nx) {
+
+	
+	/* --------------------------------------------------- Setup --------------------------------------------------- */
+	/* ------------------------------------------------------------------------------------------------------------- */
+
+	/* General parameters */
+	/* ------------------ */
+	int length = hmm->length;
+	int obs_pos = nx - 1;
+	double sig_sd = hmm->sig_sd, obs_sd = hmm->obs_sd, obs_sd0 = 2.0 * obs_sd;
+	double space_left = hmm->space_left, space_right = hmm->space_right, k = hmm->k;
+	double depth_scaler = 10.0;
+	double dx = (space_right - space_left) / (double) (nx - 1);
+	double obs, normaliser, x_hat, Z_obs, gamma_of_k = tgamma(k), Z_obs_ind, gamma_theta;
+	double low_bd = hmm->low_bd, upp_bd = hmm->upp_bd;
+	long * ind = (long *) malloc(N * sizeof(long));
+	double * thetas = (double *) malloc(N * sizeof(double));
+	double * sig_thetas = (double *) malloc(N * sizeof(double));
+	double * res_thetas = (double *) malloc(N * sizeof(double));
+	double * weights = (double *) malloc(N * sizeof(double));
+	double * h = (double *) malloc(nx * sizeof(double));
+	double * Z_x = (double *) malloc(nx * sizeof(double));
+	double * xs = (double *) malloc(nx * sizeof(double));
+	for (int j = 0; j < nx; j++)
+		xs[j] = space_left + j * dx;
+	Z_obs_ind = -depth_scaler * pow(xs[obs_pos], k - 1) / gamma_of_k;
+
+
+	/* Initial conditions */
+	/* ------------------ */
+	double theta_init = sigmoid_inv(hmm->signal[0], upp_bd, low_bd);
+	double h_init = hmm->h_init, q0 = hmm->q0, q0_sq = q0 * q0;
+	h[0] = h_init;
+	for (int i = 0; i < N; i++)
+		thetas[i] = theta_init + gsl_ran_gaussian(rng, sig_sd);
+
+	FILE * X_HATS = fopen("x_hats.txt", "w");
+	// FILE * BPF_PRIOR = fopen("bpf_prior.txt", "w");
+	// FILE * BPF_LHOODS = fopen("bpf_lhoods.txt", "w");
+	// FILE * BPF_POSTERIOR = fopen("bpf_posterior.txt", "w");
+	// FILE * BPF_MUTATED = fopen("bpf_mutated.txt", "w");
+	// FILE * BPF_DISTR = fopen("bpf_distr.txt", "w");
+	// fprintf(BPF_DISTR, "%d\n", N);
+	// fprintf(BPF_LHOODS, "%d %d\n", length, N);
+
+
+
+	/* ---------------------------------------------- Time iterations ---------------------------------------------- */
+	/* ------------------------------------------------------------------------------------------------------------- */
+	for (int n = 0; n < length; n++) {
+
+		/* Read in the observation that the particles will be weighted on */
+		obs = hmm->observations[n];
+		normaliser = 0.0;
+
+
+
+		/* --------------------------------------------------------------------------------------------------------- */
+		/*																											 																										 */
+		/* Weight generation																						 																						 */
+		/*																											 																										 */
+		/* --------------------------------------------------------------------------------------------------------- */
+		for (int i = 0; i < N; i++) {
+
+			sig_thetas[i] = sigmoid(thetas[i], upp_bd, low_bd);
+			gamma_theta = gamma_of_k * pow(sig_thetas[i], k);
+			solve(k, sig_thetas[i], nx, xs, Z_x, h, dx, q0_sq, gamma_theta);
+			// weights[i] = gsl_ran_gaussian_pdf(h[obs_pos] + gsl_ran_gaussian(rng, obs_sd0) - obs, obs_sd);
+			weights[i] = gsl_ran_gaussian_pdf(h[obs_pos] - obs, obs_sd);
+			normaliser += weights[i];
+
+			// fprintf(BPF_PRIOR, "%e ", sig_thetas[i]);
+			// fprintf(BPF_LHOODS, "%e %e\n", h[obs_pos], weights[i]);
+
+		}
+		// fprintf(BPF_PRIOR, "\n");
+
+
+
+		/* --------------------------------------------------------------------------------------------------------- */
+		/*																											 																										 */
+		/* Normalisation 																							 																						   */
+		/*																											 																										 */
+		/* --------------------------------------------------------------------------------------------------------- */
+		x_hat = 0.0;
+		for (int i = 0; i < N; i++) {
+			weights[i] /= normaliser;
+			weighted[n][i].x = sig_thetas[i];
+			weighted[n][i].w = weights[i];
+			x_hat += sig_thetas[i] * weights[i];
+		}
+		fprintf(X_HATS, "%e ", x_hat);
+		// for (int i = 0; i < N; i++)
+			// fprintf(BPF_DISTR, "%e %e\n", weighted[n][i].x, weighted[n][i].w);
+
+
+
+		/* --------------------------------------------------------------------------------------------------------- */
+		/*																											 																										 */
+		/* Resample and mutate 																						 																					 */
+		/*																											 																										 */
+		/* --------------------------------------------------------------------------------------------------------- */
+		resample(N, weights, ind, rng);
+		for (int i = 0; i < N; i++)
+			res_thetas[i] = thetas[ind[i]];
+
+		// for (int i = 0; i < N; i++)
+			// fprintf(BPF_POSTERIOR, "%e ", sigmoid(res_thetas[i], upp_bd - low_bd, low_bd));
+		// fprintf(BPF_POSTERIOR, "\n");
+
+		mutate(rng, N, thetas, res_thetas, sig_sd);
+		// for (int i = 0; i < N; i++)
+			// fprintf(BPF_MUTATED, "%e ", sigmoid(thetas[i], upp_bd - low_bd, low_bd));
+		// fprintf(BPF_MUTATED, "\n");
+
+	}
+
+	fclose(X_HATS);
+	// fclose(BPF_PRIOR);
+	// fclose(BPF_LHOODS);
+	// fclose(BPF_POSTERIOR);
+	// fclose(BPF_MUTATED);	
+	// fclose(BPF_DISTR);
+
+	free(ind);
+	free(thetas);
+	free(sig_thetas);
+	free(res_thetas);
+	free(weights);
+	free(h);
+	free(Z_x);
+	free(xs);
+
+}
+
+
+
 void ref_bootstrap_particle_filter(HMM * hmm, int N, gsl_rng * rng, w_double ** weighted) {
 
 	

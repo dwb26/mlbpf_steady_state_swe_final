@@ -18,7 +18,7 @@
 
 // This is the 1d steady state shallow water equations model
 
-void equal_runtimes_model(gsl_rng * rng, HMM * hmm, int ** N0s, int * N1s, w_double ** weighted_ref, int N_ref, int N_trials, int N_bpf, int * level0_meshes, int n_data, FILE * RAW_BPF_TIMES, FILE * RAW_BPF_KS, FILE * RAW_BPF_MSE, w_double ** ml_weighted, FILE * BPF_CENTILE_MSE)  {
+double equal_runtimes_model(gsl_rng * rng, HMM * hmm, int ** N0s, int * N1s, w_double ** weighted_ref, int N_ref, int N_trials, int N_bpf, int * level0_meshes, int n_data, FILE * RAW_BPF_TIMES, FILE * RAW_BPF_KS, FILE * RAW_BPF_MSE, w_double ** ml_weighted, FILE * BPF_CENTILE_MSE)  {
 
 	int run_ref = 1;		// REF ON
 	// int run_ref = 0;		// REF OFF
@@ -41,6 +41,8 @@ void equal_runtimes_model(gsl_rng * rng, HMM * hmm, int ** N0s, int * N1s, w_dou
 		// compute_sample_sizes(hmm, rng, level0_meshes, T, N0s, N1s, N_bpf, N_trials, ml_weighted);
 	T_temp = read_sample_sizes(hmm, N0s, N1s, N_trials);
 
+	return T;
+
 }
 
 
@@ -51,11 +53,10 @@ void generate_hmm(gsl_rng * rng, HMM * hmm, int n_data, int length, int nx) {
 	*/
 	int obs_pos = nx - 1;
 	double sig_sd = 4.0;
-	// double obs_sd = 0.075;
-	double obs_sd = 0.1;
+	// double obs_sd = 0.1 * 0.037881;
 	// double obs_sd = 0.025;
 	// double obs_sd = 0.075;
-	// double obs_sd = 0.1 * 0.037881;
+	double obs_sd = 0.1;
 	// double obs_sd = 0.25;
 	double space_left = 0.0, space_right = 50.0;
 	double dx = (space_right - space_left) / (double) (nx - 1);
@@ -279,6 +280,58 @@ double perform_BPF_trials(HMM * hmm, int N_bpf, gsl_rng * rng, int N_trials, int
 }
 
 
+double perform_BPF_trials_var_nx(HMM * hmm, int N_bpf, gsl_rng * rng, int N_trials, int N_ref, w_double ** weighted_ref, int n_data, FILE * RAW_BPF_TIMES, FILE * RAW_BPF_KS, FILE * RAW_BPF_MSE, FILE * BPF_CENTILE_MSE, int nx) {
+
+	int length = hmm->length;
+	double centile = 0.95;
+	double ks = 0.0, elapsed = 0.0, mse = 0.0, mean_elapsed = 0.0, q_mse = 0.0;
+	double * ref_centiles = (double *) malloc(length * sizeof(double));
+	compute_nth_percentile(weighted_ref, N_ref, centile, length, ref_centiles);	
+	double * bpf_centiles = (double *) malloc(length * sizeof(double));
+	w_double ** weighted = (w_double **) malloc(length * sizeof(w_double *));
+	for (int n = 0; n < length; n++)
+		weighted[n] = (w_double *) malloc(N_ref * sizeof(w_double));
+
+	for (int n_trial = 0; n_trial < N_trials; n_trial++) {
+
+		/* Run the simulation for the BPF */
+		clock_t bpf_timer = clock();
+		bootstrap_particle_filter_var_nx(hmm, N_bpf, rng, weighted, nx);
+		elapsed = (double) (clock() - bpf_timer) / (double) CLOCKS_PER_SEC;
+		mean_elapsed += elapsed;
+
+		/* Compute the KS statistic for the run */
+		ks = 0.0;
+		for (int n = 0; n < length; n++) {
+			qsort(weighted[n], N_bpf, sizeof(w_double), weighted_double_cmp);
+			ks += ks_statistic(N_ref, weighted_ref[n], N_bpf, weighted[n]) / (double) length;
+		}
+
+		mse = compute_mse(weighted_ref, weighted, length, N_ref, N_bpf);
+		compute_nth_percentile(weighted, N_bpf, centile, length, bpf_centiles);
+		q_mse = 0.0;
+		for (int n = 0; n < length; n++)
+			q_mse += (ref_centiles[n] - bpf_centiles[n]) * (ref_centiles[n] - bpf_centiles[n]);
+		fprintf(BPF_CENTILE_MSE, "%e ", sqrt(q_mse / (double) length));
+		fprintf(RAW_BPF_TIMES, "%e ", elapsed);
+		fprintf(RAW_BPF_KS, "%e ", ks);
+		fprintf(RAW_BPF_MSE, "%e ", mse);
+
+	}
+
+	fprintf(RAW_BPF_TIMES, "\n");
+	fprintf(RAW_BPF_KS, "\n");
+	fprintf(RAW_BPF_MSE, "\n");
+	
+	free(weighted);
+	free(ref_centiles);
+	free(bpf_centiles);
+
+	return mean_elapsed / (double) N_trials;
+
+}
+
+
 void compute_sample_sizes(HMM * hmm, gsl_rng * rng, int * level0_meshes, double T, int ** N0s, int * N1s, int N_bpf, int N_trials, w_double ** ml_weighted) {
 
 	/* Variables to compute the sample sizes */
@@ -412,6 +465,76 @@ void compute_sample_sizes(HMM * hmm, gsl_rng * rng, int * level0_meshes, double 
 	free(sign_ratios);
 	free(sample_sizes);
 
+}
+
+
+int compute_sample_sizes_bpf(HMM * hmm, gsl_rng * rng, double T, int nx, w_double ** weighted) {
+
+	/**
+	 * 
+	 * In this function we compute the N_bpf required to run the BPF for the same as T(nx1), given nx < nx1.
+	 * 
+	 * */
+
+	int N_lo = 500, N_hi = 3000, N_bpf;
+	clock_t timer;
+	int length = hmm->length;
+	double T_lo, T_hi, T_bpf, diff;
+
+	/* Make sure we find a low sample size for which we know the root is greater than */
+	timer = clock();
+	bootstrap_particle_filter_var_nx(hmm, N_lo, rng, weighted, nx);
+	T_lo = (double) (clock() - timer) / (double) CLOCKS_PER_SEC;
+	diff = (T_lo - T) / T;
+	while (diff > 0) {
+		T_lo = (int) (0.5 * T_lo);
+		timer = clock();
+		bootstrap_particle_filter_var_nx(hmm, N_lo, rng, weighted, nx);
+		T_lo = (double) (clock() - timer) / (double) CLOCKS_PER_SEC;
+		diff = (T_lo - T) / T;
+	}
+
+	/* Make sure we find a low sample size for which we know the root is less than */
+	timer = clock();
+	bootstrap_particle_filter_var_nx(hmm, N_hi, rng, weighted, nx);
+	T_hi = (double) (clock() - timer) / (double) CLOCKS_PER_SEC;
+	diff = (T_hi - T) / T;
+	while (diff < 0) {
+		T_hi = (int) (2 * T_hi);
+		timer = clock();
+		bootstrap_particle_filter_var_nx(hmm, N_hi, rng, weighted, nx);
+		T_hi = (double) (clock() - timer) / (double) CLOCKS_PER_SEC;
+		diff = (T_hi - T) / T;
+	}
+
+	/* Find the root N_bpf in between [N_lo, N_hi] */
+	N_bpf = (int) (0.5 * (N_lo + N_hi));
+	timer = clock();
+	bootstrap_particle_filter_var_nx(hmm, N_bpf, rng, weighted, nx);
+	T_bpf = (double) (clock() - timer) / (double) CLOCKS_PER_SEC;
+	diff = (T_bpf - T) / T;
+	while (fabs(diff) >= 0.01) {
+		if (diff > 0) {
+			N_hi = N_bpf;
+			N_bpf = (int) (0.5 * (N_lo + N_hi));
+			timer = clock();
+			bootstrap_particle_filter_var_nx(hmm, N_bpf, rng, weighted, nx);
+			T_bpf = (double) (clock() - timer) / (double) CLOCKS_PER_SEC;
+			diff = (T_bpf - T) / T;
+		}			
+		else {
+			N_lo = N_bpf;
+			N_bpf = (int) (0.5 * (N_lo + N_hi));
+			timer = clock();
+			bootstrap_particle_filter_var_nx(hmm, N_bpf, rng, weighted, nx);
+			T_bpf = (double) (clock() - timer) / (double) CLOCKS_PER_SEC;
+			diff = (T_bpf - T) / T;
+		}
+		if (N_lo == N_hi)
+			diff = 0.0;
+	}
+
+	return N_bpf;
 }
 
 
