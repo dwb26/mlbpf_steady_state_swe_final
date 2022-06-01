@@ -18,10 +18,10 @@
 
 // This is the 1d steady state shallow water equations model
 
-double equal_runtimes_model(gsl_rng * rng, HMM * hmm, int ** N0s, int * N1s, w_double ** weighted_ref, int N_ref, int N_trials, int N_bpf, int * level0_meshes, int n_data, FILE * RAW_BPF_TIMES, FILE * RAW_BPF_KS, FILE * RAW_BPF_MSE, w_double ** ml_weighted, FILE * BPF_CENTILE_MSE)  {
+double equal_runtimes_model(gsl_rng * rng, HMM * hmm, int ** N0s, int * N1s, w_double ** weighted_ref, int N_ref, int N_trials, int N_bpf, int * level0_meshes, int n_data, FILE * RAW_BPF_TIMES, FILE * RAW_BPF_KS, FILE * RAW_BPF_MSE, w_double ** ml_weighted, FILE * BPF_CENTILE_MSE, FILE * STEPWISE_BPF_RMSE) {
 
-	int run_ref = 1;		// REF ON
-	// int run_ref = 0;		// REF OFF
+	// int run_ref = 1;		// REF ON
+	int run_ref = 0;		// REF OFF
 
 	/* Reference distribution */
 	/* ---------------------- */
@@ -36,9 +36,9 @@ double equal_runtimes_model(gsl_rng * rng, HMM * hmm, int ** N0s, int * N1s, w_d
 	/* ----------------- */
 	/* Run the BPF with a set number of particles N_bpf < N_ref and record the accuracy and the mean time taken. Then for each mesh configuration, increment the level 1 particle allocation and compute the level 0 particle allocation so that the time taken for the MLBPF is roughly the same as the BPF */
 	double T, T_temp;
-	T = perform_BPF_trials(hmm, N_bpf, rng, N_trials, N_ref, weighted_ref, n_data, RAW_BPF_TIMES, RAW_BPF_KS, RAW_BPF_MSE, BPF_CENTILE_MSE);
-	// if (n_data == 0)
-		// compute_sample_sizes(hmm, rng, level0_meshes, T, N0s, N1s, N_bpf, N_trials, ml_weighted);
+	T = perform_BPF_trials(hmm, N_bpf, rng, N_trials, N_ref, weighted_ref, n_data, RAW_BPF_TIMES, RAW_BPF_KS, RAW_BPF_MSE, BPF_CENTILE_MSE, STEPWISE_BPF_RMSE);
+	if (n_data == 0)
+		compute_sample_sizes(hmm, rng, level0_meshes, T, N0s, N1s, N_bpf, N_trials, ml_weighted);
 	T_temp = read_sample_sizes(hmm, N0s, N1s, N_trials);
 
 	return T;
@@ -52,17 +52,17 @@ void generate_hmm(gsl_rng * rng, HMM * hmm, int n_data, int length, int nx) {
 	Generates the HMM data and outputs to file to be read in by read_hmm.
 	*/
 	int obs_pos = nx - 1;
-	double sig_sd = 4.0;
+	// double sig_sd = 4.0;
+	double sig_sd = 5.5;
 	// double obs_sd = 0.1 * 0.037881;
 	// double obs_sd = 0.025;
 	// double obs_sd = 0.075;
-	double obs_sd = 0.1;
+	double obs_sd = 0.15;
 	// double obs_sd = 0.25;
 	double space_left = 0.0, space_right = 50.0;
 	double dx = (space_right - space_left) / (double) (nx - 1);
 	double k = 3.5, theta, obs;
 	double h_init = 2.0, q0 = 3.0, q0_sq = q0 * q0;	
-	// double lower_bound = 1.5, upper_bound = 6.0 + lower_bound;
 	double lower_bound = 1.5, upper_bound = 8.0 + lower_bound;
 	double Z_obs, gamma_of_k = tgamma(k), gamma_theta, Z_obs_ind, sig_theta = 4.5;
 	double * h = (double *) malloc(nx * sizeof(double));
@@ -99,9 +99,7 @@ void generate_hmm(gsl_rng * rng, HMM * hmm, int n_data, int length, int nx) {
 		sig_theta = sigmoid(theta, upper_bound, lower_bound);
 		gamma_theta = gamma_of_k * pow(sig_theta, k);
 		solve(k, sig_theta, nx, xs, Z_x, h, dx, q0_sq, gamma_theta);
-		// for (int i = 0; i < 12; i++)
-			// printf("%lf %lf\n", h[obs_pos], gsl_ran_gaussian(rng, obs_sd));
-		obs = h[obs_pos] + gsl_ran_gaussian(rng, obs_sd);
+		obs = h[obs_pos] + gsl_ran_gaussian(rng0, obs_sd);
 		fprintf(DATA_OUT, "%e %e\n", sig_theta, obs);
 
 		double true_soln = h[obs_pos];
@@ -114,7 +112,7 @@ void generate_hmm(gsl_rng * rng, HMM * hmm, int n_data, int length, int nx) {
 		fprintf(TOP_DATA, "\n");
 
 		/* Evolve the signal with the mutation model */
-		theta = 0.9999 * theta + gsl_ran_gaussian(rng, sig_sd);
+		theta = 0.9999 * theta + gsl_ran_gaussian(rng0, sig_sd);
 
 	}
 	printf("Average observation stds = %lf\n", top_varY / (double) length);
@@ -227,24 +225,27 @@ void read_cdf(w_double ** w_particles, HMM * hmm, int n_data) {
 }
 
 
-double perform_BPF_trials(HMM * hmm, int N_bpf, gsl_rng * rng, int N_trials, int N_ref, w_double ** weighted_ref, int n_data, FILE * RAW_BPF_TIMES, FILE * RAW_BPF_KS, FILE * RAW_BPF_MSE, FILE * BPF_CENTILE_MSE) {
+double perform_BPF_trials(HMM * hmm, int N_bpf, gsl_rng * rng, int N_trials, int N_ref, w_double ** weighted_ref, int n_data, FILE * RAW_BPF_TIMES, FILE * RAW_BPF_KS, FILE * RAW_BPF_MSE, FILE * BPF_CENTILE_MSE, FILE * STEPWISE_BPF_RMSE) {
 
 	int length = hmm->length;
 	double centile = 0.95;
-	double ks = 0.0, elapsed = 0.0, mse = 0.0, mean_elapsed = 0.0, q_mse = 0.0;
+	double ks = 0.0, elapsed = 0.0, mse = 0.0, mean_elapsed = 0.0, q_mse = 0.0, bpf_xhat = 0.0, ref_xhat = 0.0;
 	double * ref_centiles = (double *) malloc(length * sizeof(double));
-	compute_nth_percentile(weighted_ref, N_ref, centile, length, ref_centiles);	
+	compute_nth_percentile(weighted_ref, N_ref, centile, length, ref_centiles);
+	double * bpf_rmses = (double *) calloc(length, sizeof(double));
 	double * bpf_centiles = (double *) malloc(length * sizeof(double));
 	w_double ** weighted = (w_double **) malloc(length * sizeof(w_double *));
 	for (int n = 0; n < length; n++)
 		weighted[n] = (w_double *) malloc(N_bpf * sizeof(w_double));
 
+	gsl_rng * rng0 = gsl_rng_alloc(gsl_rng_taus);
 	printf("Running BPF trials...\n");
 	for (int n_trial = 0; n_trial < N_trials; n_trial++) {
 
 		/* Run the simulation for the BPF */
+		gsl_rng_set(rng0, n_trial + 1);
 		clock_t bpf_timer = clock();
-		bootstrap_particle_filter(hmm, N_bpf, rng, weighted);
+		bootstrap_particle_filter(hmm, N_bpf, rng0, weighted);
 		elapsed = (double) (clock() - bpf_timer) / (double) CLOCKS_PER_SEC;
 		mean_elapsed += elapsed;
 
@@ -265,7 +266,15 @@ double perform_BPF_trials(HMM * hmm, int N_bpf, gsl_rng * rng, int N_trials, int
 		fprintf(RAW_BPF_KS, "%e ", ks);
 		fprintf(RAW_BPF_MSE, "%e ", mse);
 
+		for (int n = 0; n < length; n++) {
+			bpf_rmses[n] += log10(sqrt(compute_mse(weighted_ref, weighted, n + 1, N_ref, N_bpf))) / (double) N_trials;
+			// printf("n = %d: MSE = %lf\n", n, compute_mse(weighted_ref, weighted, n + 1, N_ref, N_bpf));
+		}
+		// printf("\n");
+
 	}
+	for (int n = 0; n < length; n++)
+		fprintf(STEPWISE_BPF_RMSE, "%e ", bpf_rmses[n]);
 
 	fprintf(RAW_BPF_TIMES, "\n");
 	fprintf(RAW_BPF_KS, "\n");
@@ -274,6 +283,8 @@ double perform_BPF_trials(HMM * hmm, int N_bpf, gsl_rng * rng, int N_trials, int
 	free(weighted);
 	free(ref_centiles);
 	free(bpf_centiles);
+	free(bpf_rmses);
+	gsl_rng_free(rng0);
 
 	return mean_elapsed / (double) N_trials;
 

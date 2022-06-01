@@ -95,12 +95,6 @@ for i_mesh in range(N_MESHES):
 				if x > ks_glob_max:
 					ks_glob_max = x
 
-		# MSE and RMSE data read
-		c = 0
-		for x in mse_arr[i_mesh, n_alloc, :]:
-			rmse_arr[i_mesh, n_alloc, c] = np.sqrt(x)
-			c += 1
-
 # NaN handling #
 # ------------ #
 ks_glob_min = np.log10(ks_glob_min)
@@ -133,6 +127,12 @@ for i_mesh in range(N_MESHES):
 			if np.abs(mlbpf_centile_mse_arr[i_mesh, n_alloc, n_trial] - -1) < eps:
 				mlbpf_centile_mse_arr[i_mesh, n_alloc, n_trial] = float("NaN")
 
+for i_mesh in range(N_MESHES):
+	for n_alloc in range(N_ALLOCS):
+		c = 0
+		for x in mse_arr[i_mesh, n_alloc, :]:
+			rmse_arr[i_mesh, n_alloc, c] = np.sqrt(x)
+			c += 1
 
 
 # ------------------------------------------------------------------------------------------------------------------- #
@@ -144,12 +144,19 @@ colors = ["orchid", "mediumpurple", "royalblue", "powderblue", "mediumseagreen",
 fig_width = 8; fig_height = 7
 hspace = 0.9
 fig1, axs = plt.subplots(nrows=N_MESHES, ncols=1, figsize=(fig_width, fig_height))
-fig2, axs2 = plt.subplots(nrows=3, ncols=1, figsize=(fig_width, fig_height))
+fig2, axs2 = plt.subplots(nrows=2, ncols=1, figsize=(fig_width, fig_height))
 fig3, axs3 = plt.subplots(nrows=1, ncols=1, figsize=(fig_width, fig_height))
 fig1.subplots_adjust(hspace=hspace)
 fig1.suptitle(r"N_data = {}, N_trials = {}, nx = {}, N_bpf = {}, $\sigma_{} = {}$, $\sigma_{} = {}$, len = {}".format(N_data, N_trials, nx, N_bpf, "s", sig_sd, "o", obs_sd, length))
 fig2.subplots_adjust(hspace=0.4)
 fig2.suptitle(r"N_data = {}, N_trials = {}, nx = {}, N_bpf = {}, $\sigma_{} = {}$, $\sigma_{} = {}$, len = {}".format(N_data, N_trials, nx, N_bpf, "s", sig_sd, "o", obs_sd, length))
+
+# ks_boxplot = True
+ks_boxplot = False
+# mse_boxplot = True
+mse_boxplot = False
+mean_rmse = True
+# mean_rmse = False
 
 
 
@@ -158,29 +165,43 @@ fig2.suptitle(r"N_data = {}, N_trials = {}, nx = {}, N_bpf = {}, $\sigma_{} = {}
 # Boxplots
 #
 # ------------------------------------------------------------------------------------------------------------------- #
-if N_MESHES > 1:
-	for i_mesh in range(N_MESHES):
-		# ax = sns.boxplot(data=pd.DataFrame(np.log10(mse_arr[i_mesh].T), columns=N1s), ax=axs[i_mesh], color=colors[i_mesh], whis=1000)
-		# ax.plot(range(max_allocs), bpf_median_mse_log10 * np.ones(max_allocs), color="limegreen", label="BPF")
-		ax = sns.boxplot(data=pd.DataFrame(np.log10(ks_arr[i_mesh].T), columns=N1s), ax=axs[i_mesh], color=colors[i_mesh], whis=1000)
-		ax.plot(range(max_allocs), bpf_median_ks_log10 * np.ones(max_allocs), color="limegreen", label="BPF KS")
-		ax.set_title("Level 0 mesh size = {}".format(level0s[i_mesh]), fontsize=9)
-		# ax.set(ylim=(ks_glob_min, ks_glob_max))
-		if i_mesh == N_MESHES - 1:
-			ax.set_xlabel(r"$N_1$")
-		if i_mesh < N_MESHES - 1:
-			ax.set_xticks([])
-else:
-	for i_mesh in range(N_MESHES):
-		# ax = sns.boxplot(data=pd.DataFrame(np.log10(mse_arr[i_mesh].T), columns=N1s), ax=axs, color=colors[i_mesh])
-		# ax.plot(range(max_allocs), bpf_median_mse_log10 * np.ones(max_allocs), color="limegreen", label="BPF")
-		ax = sns.boxplot(data=pd.DataFrame(np.log10(ks_arr[i_mesh].T), columns=N1s), ax=axs, color=colors[i_mesh], whis=1000)
-		ax.plot(range(max_allocs), bpf_median_ks_log10 * np.ones(max_allocs), color="limegreen", label="BPF KS")
-		# ax.plot(range(max_allocs), bpf_median_ks_log10 * np.ones(max_allocs), "ro", label="BPF KS")
-		ax.set_title("Level 0 mesh size = {}".format(level0s[i_mesh]), fontsize=9)
-		# ax.set(ylim=(ks_glob_min, ks_glob_max))
-		if i_mesh == N_MESHES - 1:
-			ax.set_xlabel(r"$N_1$")
+if ks_boxplot:
+	if N_MESHES > 1:
+		for i_mesh in range(N_MESHES):
+			ax = sns.boxplot(data=pd.DataFrame(np.log10(ks_arr[i_mesh].T), columns=N1s), ax=axs[i_mesh], color=colors[i_mesh], whis=1000)
+			ax.plot(range(max_allocs), bpf_median_ks_log10 * np.ones(max_allocs), color="limegreen", label="BPF KS")
+			ax.set_title("Level 0 mesh size = {}".format(level0s[i_mesh]), fontsize=9)
+			ax.set(ylim=(ks_glob_min, ks_glob_max))
+			if i_mesh == N_MESHES - 1:
+				ax.set_xlabel(r"$N_1$")
+			if i_mesh < N_MESHES - 1:
+				ax.set_xticks([])
+	else:
+		for i_mesh in range(N_MESHES):
+			ax = sns.boxplot(data=pd.DataFrame(np.log10(ks_arr[i_mesh].T), columns=N1s), ax=axs, color=colors[i_mesh], whis=1000)
+			ax.plot(range(max_allocs), bpf_median_ks_log10 * np.ones(max_allocs), color="limegreen", label="BPF KS")
+			ax.set_title("Level 0 mesh size = {}".format(level0s[i_mesh]), fontsize=9)
+			ax.set(ylim=(ks_glob_min, ks_glob_max))
+			if i_mesh == N_MESHES - 1:
+				ax.set_xlabel(r"$N_1$")
+
+if mse_boxplot:
+	if N_MESHES > 1:
+		for i_mesh in range(N_MESHES):
+			ax = sns.boxplot(data=pd.DataFrame(np.log10(mse_arr[i_mesh].T), columns=N1s), ax=axs[i_mesh], color=colors[i_mesh], whis=1000)
+			ax.plot(range(max_allocs), bpf_median_mse_log10 * np.ones(max_allocs), color="limegreen", label="BPF")
+			ax.set_title("Level 0 mesh size = {}".format(level0s[i_mesh]), fontsize=9)
+			if i_mesh == N_MESHES - 1:
+				ax.set_xlabel(r"$N_1$")
+			if i_mesh < N_MESHES - 1:
+				ax.set_xticks([])
+	else:
+		for i_mesh in range(N_MESHES):
+			ax = sns.boxplot(data=pd.DataFrame(np.log10(mse_arr[i_mesh].T), columns=N1s), ax=axs, color=colors[i_mesh])
+			ax.plot(range(max_allocs), bpf_median_mse_log10 * np.ones(max_allocs), color="limegreen", label="BPF")
+			ax.set_title("Level 0 mesh size = {}".format(level0s[i_mesh]), fontsize=9)
+			if i_mesh == N_MESHES - 1:
+				ax.set_xlabel(r"$N_1$")
 
 
 
@@ -189,22 +210,20 @@ else:
 # Mean RMSE from reference point estimates
 #
 # ------------------------------------------------------------------------------------------------------------------- #
-axs2[0].set_title("Mean(log10(RMSE))", fontsize=9)
-axs2[0].plot(N1s[:max_allocs], bpf_mean_rmse_log10 * np.ones(max_allocs), color="black", label="BPF")
-for i_mesh in range(N_MESHES):
-	rmses = rmse_arr[i_mesh].T
-	means = []
-	for n_alloc in range(alloc_counters[i_mesh]):
-		rmses_new = []
-		for x in rmses[:, n_alloc]:
-			if not pd.isna(x):
-				rmses_new.append(x)
-		means.append(np.mean(np.log10(rmses_new)))
-	# axs2[0].plot(N1s[:alloc_counters[i_mesh]], np.mean(np.log10(mse_arr[i_mesh].T), axis=0), label=level0s[i_mesh], marker="o", color=colors[i_mesh], markersize=3)
-	axs2[0].plot(N1s[:alloc_counters[i_mesh]], means, label=level0s[i_mesh], marker="o", color=colors[i_mesh], markersize=3)
-axs2[0].legend()
-# axs2[0].set_xticks([])
-
+mins = []
+if mean_rmse:
+	axs2[0].plot(N1s[:max_allocs], bpf_mean_rmse_log10 * np.ones(max_allocs), color="black", label="BPF")
+	for i_mesh in range(N_MESHES):
+		means = np.empty(alloc_counters[i_mesh])
+		for n_alloc in range(alloc_counters[i_mesh]):
+			means[n_alloc] = np.mean(np.log10(rmse_arr[i_mesh, n_alloc, :]))
+		axs2[0].plot(N1s[:alloc_counters[i_mesh]], means, label=level0s[i_mesh], marker="o", color=colors[i_mesh], markersize=3)
+		mins.append(np.min(means))
+	print(np.min(mins))
+	axs2[0].set_title("Mean(log10(RMSE))", fontsize=9)
+	axs2[0].legend()
+	# axs2[0].set_xticks([])
+print(bpf_mean_rmse_log10)
 
 
 # ------------------------------------------------------------------------------------------------------------------- #
@@ -248,12 +267,12 @@ for i_mesh in range(N_MESHES):
 # Quantile RMSE estimation
 #
 # ------------------------------------------------------------------------------------------------------------------- #
-axs2[2].set_title("Quantile RMSE estimation", fontsize=9)
-axs2[2].plot(N1s[:max_allocs], np.mean(np.log10(bpf_centile_mse)) * np.ones(max_allocs), color="black", label="BPF")
-for i_mesh in range(N_MESHES):
-	axs2[2].plot(N1s[:alloc_counters[i_mesh]], np.mean(np.log10(mlbpf_centile_mse_arr[i_mesh, :alloc_counters[i_mesh], :].T), axis=0), label=level0s[i_mesh], marker="o", color=colors[i_mesh], markersize=3)
-# axs2[0].set_xticks([])
-# axs2[2].legend()
+# axs2[2].set_title("Quantile RMSE estimation", fontsize=9)
+# axs2[2].plot(N1s[:max_allocs], np.mean(np.log10(bpf_centile_mse)) * np.ones(max_allocs), color="black", label="BPF")
+# for i_mesh in range(N_MESHES):
+# 	axs2[2].plot(N1s[:alloc_counters[i_mesh]], np.mean(np.log10(mlbpf_centile_mse_arr[i_mesh, :alloc_counters[i_mesh], :].T), axis=0), label=level0s[i_mesh], marker="o", color=colors[i_mesh], markersize=3)
+# # axs2[0].set_xticks([])
+# # axs2[2].legend()
 
 
 

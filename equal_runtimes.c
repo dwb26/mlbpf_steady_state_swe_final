@@ -16,13 +16,13 @@
 const int N_TOTAL_MAX = 100000000;
 const int N_LEVELS = 2;
 const int N_ALLOCS = 7;
-const int N_MESHES = 8;
+const int N_MESHES = 7;
 // const int N_ALLOCS = 1;
 // const int N_MESHES = 1;
 
 void output_parameters(int N_trials, int * level0_meshes, int nx, int * N1s, int N_data, int N_bpf);
 void record_reference_data(HMM * hmm, w_double ** weighted_ref, int N_ref, FILE * FULL_HMM_DATA, FILE * FULL_REF_DATA, FILE * REF_STDS);
-void output_ml_data(HMM * hmm, int N_trials, double *** raw_times, double *** raw_ks, double *** raw_mse, double *** raw_srs, int * level0_meshes, int * N1s, int * alloc_counters, FILE * ALLOC_COUNTERS, FILE * RAW_TIMES, FILE * RAW_KS, FILE * RAW_MSE, FILE * RAW_SRS, int N_data, FILE * MLBPF_CENTILE_MSE, double *** raw_qmses);
+void output_ml_data(HMM * hmm, int N_trials, double *** raw_times, double *** raw_ks, double *** raw_mse, double *** raw_srs, int * level0_meshes, int * N1s, int * alloc_counters, FILE * ALLOC_COUNTERS, FILE * RAW_TIMES, FILE * RAW_KS, FILE * RAW_MSE, FILE * RAW_SRS, int N_data, FILE * MLBPF_CENTILE_MSE, double *** raw_qmses, int ** N0s);
 
 static int compare (const void * a, const void * b)
 {
@@ -40,33 +40,31 @@ int main(void) {
 
 	clock_t timer = clock();
 	gsl_rng * rng = gsl_rng_alloc(gsl_rng_taus);
+	gsl_rng * rng0 = gsl_rng_alloc(gsl_rng_taus);
 
 
 	/* Main experiment parameters */
 	/* -------------------------- */
 	int N_data = 1;
 	int N_trials = 10;
-	int length = 50, nx = 500;
+	int length = 20, nx = 1000;
 	int N_ref = 500000;
-	int N_bpf = 1000;
-	// int N_bpf = 2500;
-	// int N_bpf = 5000;
+	// int N_bpf = 1000;
+	int N_bpf = 5000;
 	// int N_bpf = 10000;
 	// int N_bpf = 15000;	
 	// int level0_meshes[N_MESHES] = { 300, 200, 150, 100, 50, 25 };
 	// int level0_meshes[N_MESHES] = { 200, 150, 100, 50 };
 	// int level0_meshes[N_MESHES] = { 80, 60, 40, 25 };
-	// int level0_meshes[N_MESHES] = { 750, 500, 250, 200, 150, 100, 50 };
+	int level0_meshes[N_MESHES] = { 750, 500, 250, 200, 150, 100, 50 };
 	// int level0_meshes[N_MESHES] = { 175, 125, 100, 75, 50 };
-	int level0_meshes[N_MESHES] = { 350, 250, 200, 150, 125, 100, 75, 50 }; ///
+	// int level0_meshes[N_MESHES] = { 350, 250, 200, 150, 125, 100, 75, 50 }; ///
 	// int level0_meshes[N_MESHES] = { 650, 450, 250, 125, 75 };
-	// int level0_meshes[N_MESHES] = { 650 };
-	int N1s[N_ALLOCS] = { 0, 50, 120, 250, 500, 750, 900 }; ///
-	// int N1s[N_ALLOCS] = { 0, 50 };
-	// int N1s[N_ALLOCS] = { 0, 125, 250, 500, 1000 };
+	// int N1s[N_ALLOCS] = { 0, 50, 125, 250, 500, 750, 900 }; ///
+	// int N1s[N_ALLOCS] = { 0, 75, 125, 250, 300, 400, 450 };
 	// int N1s[N_ALLOCS] = { 0, 125, 250, 500, 1000, 1500, 2000 };
 	// int N1s[N_ALLOCS] = { 0, 100, 200, 300, 400, 500, 600, 700, 800, 900 };
-	// int N1s[N_ALLOCS] = { 0, 100, 250, 500, 1000, 2500, 5000 };
+	int N1s[N_ALLOCS] = { 0, 100, 250, 500, 1000, 2000, 4000 };
 	// int N1s[N_ALLOCS] = { 0, 25, 50, 100 };
 	// int level0_meshes[N_MESHES] = { 100 };
 	// int N1s[N_ALLOCS] = { 500 };
@@ -75,12 +73,14 @@ int main(void) {
 	int * sample_sizes = (int *) malloc(N_LEVELS * sizeof(int));
 	int * alloc_counters = (int *) malloc(N_MESHES * sizeof(int));
 	double * sign_ratios = (double *) calloc(length, sizeof(double));
+	double * min_rmses = (double *) calloc(length, sizeof(double));
 	double * mlbpf_centiles = (double *) malloc(length * sizeof(double));
 	double *** raw_ks = (double ***) malloc(N_MESHES * sizeof(double **));
 	double *** raw_mse = (double ***) malloc(N_MESHES * sizeof(double **));
 	double *** raw_times = (double ***) malloc(N_MESHES * sizeof(double **));
 	double *** raw_srs = (double ***) malloc(N_MESHES * sizeof(double **));
 	double *** raw_qmses = (double ***) malloc(N_MESHES * sizeof(double **));
+	double *** rmses = (double ***) malloc(N_MESHES * sizeof(double **));
 	for (int i_mesh = 0; i_mesh < N_MESHES; i_mesh++) {
 		N0s[i_mesh] = (int *) malloc(N_ALLOCS * sizeof(int));
 		raw_ks[i_mesh] = (double **) malloc(N_ALLOCS * sizeof(double *));
@@ -88,12 +88,14 @@ int main(void) {
 		raw_times[i_mesh] = (double **) malloc(N_ALLOCS * sizeof(double *));
 		raw_srs[i_mesh] = (double **) malloc(N_ALLOCS * sizeof(double *));
 		raw_qmses[i_mesh] = (double **) malloc(N_ALLOCS * sizeof(double *));
+		rmses[i_mesh] = (double **) malloc(N_ALLOCS * sizeof(double *));
 		for (int n_alloc = 0; n_alloc < N_ALLOCS; n_alloc++) {
 			raw_ks[i_mesh][n_alloc] = (double *) calloc(N_data * N_trials, sizeof(double));
 			raw_mse[i_mesh][n_alloc] = (double *) calloc(N_data * N_trials, sizeof(double));
 			raw_times[i_mesh][n_alloc] = (double *) calloc(N_data * N_trials, sizeof(double));
 			raw_srs[i_mesh][n_alloc] = (double *) calloc(N_data * N_trials, sizeof(double));
 			raw_qmses[i_mesh][n_alloc] = (double *) calloc(N_data * N_trials, sizeof(double));
+			rmses[i_mesh][n_alloc] = (double *) calloc(length, sizeof(double));
 		}
 	}
 	w_double ** weighted_ref = (w_double **) malloc(length * sizeof(w_double *));
@@ -117,6 +119,8 @@ int main(void) {
 	FILE * FULL_REF_DATA = fopen("full_ref_data.txt", "w");
 	FILE * BPF_CENTILE_MSE = fopen("bpf_centile_mse.txt", "w");
 	FILE * MLBPF_CENTILE_MSE = fopen("mlbpf_centile_mse.txt", "w");
+	FILE * MIN_RMSES = fopen("min_rmses.txt", "w");
+	FILE * STEPWISE_BPF_RMSE = fopen("stepwise_bpf_rmse.txt", "w");
 	output_parameters(N_trials, level0_meshes, nx, N1s, N_data, N_bpf);
 
 	int ML_experiment, BPF_experiment;
@@ -131,7 +135,7 @@ int main(void) {
 	/* Accuracy trials 																				 																							 */
 	/* 																																																			 */
 	/* ----------------------------------------------------------------------------------------------------- */
-	int N0, N1, N_tot;
+	int N0, N1, N_tot, rng_counter = N_trials + 1;
 	double ks, sr, ref_xhat, ml_xhat, q_mse, centile = 0.95;
 	double * ref_centiles = (double *) malloc(length * sizeof(double));
 	HMM * hmm = (HMM *) malloc(sizeof(HMM));
@@ -143,7 +147,7 @@ int main(void) {
 			/* Generate the HMM data and run the BPF on it */
 			/* ------------------------------------------- */
 			generate_hmm(rng, hmm, n_data, length, nx);
-			sr = equal_runtimes_model(rng, hmm, N0s, N1s, weighted_ref, N_ref, N_trials, N_bpf, level0_meshes, n_data, RAW_BPF_TIMES, RAW_BPF_KS, RAW_BPF_MSE, ml_weighted, BPF_CENTILE_MSE);
+			sr = equal_runtimes_model(rng, hmm, N0s, N1s, weighted_ref, N_ref, N_trials, N_bpf, level0_meshes, n_data, RAW_BPF_TIMES, RAW_BPF_KS, RAW_BPF_MSE, ml_weighted, BPF_CENTILE_MSE, STEPWISE_BPF_RMSE);
 			record_reference_data(hmm, weighted_ref, N_ref, FULL_HMM_DATA, FULL_REF_DATA, REF_STDS);
 			compute_nth_percentile(weighted_ref, N_ref, centile, length, ref_centiles);
 
@@ -170,7 +174,6 @@ int main(void) {
 
 					ref_xhat = 0.0, ml_xhat = 0.0;
 					if (N0 == 0) {
-						alloc_counters[i_mesh] = n_alloc;
 						for (int n_trial = 0; n_trial < N_trials; n_trial++) {
 							raw_mse[i_mesh][n_alloc][n_data * N_trials + n_trial] = -1;
 							raw_ks[i_mesh][n_alloc][n_data * N_trials + n_trial] = -1;
@@ -179,8 +182,10 @@ int main(void) {
 					}
 					else {
 						for (int n_trial = 0; n_trial < N_trials; n_trial++) {
+							rng_counter++;
+							gsl_rng_set(rng0, rng_counter);
 							clock_t trial_timer = clock();
-							ml_bootstrap_particle_filter(hmm, sample_sizes, nxs, rng, ml_weighted, sign_ratios);
+							ml_bootstrap_particle_filter(hmm, sample_sizes, nxs, rng0, ml_weighted, sign_ratios);
 							double elapsed = (double) (clock() - trial_timer) / (double) CLOCKS_PER_SEC;
 
 							ks = 0.0, sr = 0.0, q_mse = 0.0;
@@ -195,15 +200,37 @@ int main(void) {
 							raw_mse[i_mesh][n_alloc][n_data * N_trials + n_trial] = compute_mse(weighted_ref, ml_weighted, length, N_ref, N_tot);
 							raw_ks[i_mesh][n_alloc][n_data * N_trials + n_trial] = ks;
 							raw_times[i_mesh][n_alloc][n_data * N_trials + n_trial] = elapsed;
+
+							for (int n = 0; n < length; n++)
+								rmses[i_mesh][n_alloc][n] += log10(sqrt(compute_mse(weighted_ref, ml_weighted, n + 1, N_ref, N_tot))) / (double) N_trials;
 						}
 					}
 					printf("\n");
 				}
 			}
 		}
-		output_ml_data(hmm, N_trials, raw_times, raw_ks, raw_mse, raw_srs, level0_meshes, N1s, alloc_counters, ALLOC_COUNTERS, RAW_TIMES, RAW_KS, RAW_MSE, RAW_SRS, N_data, MLBPF_CENTILE_MSE, raw_qmses);
+		output_ml_data(hmm, N_trials, raw_times, raw_ks, raw_mse, raw_srs, level0_meshes, N1s, alloc_counters, ALLOC_COUNTERS, RAW_TIMES, RAW_KS, RAW_MSE, RAW_SRS, N_data, MLBPF_CENTILE_MSE, raw_qmses, N0s);
+
+		for (int n = 0; n < length; n++) {
+			min_rmses[n] = 100.0;
+			for (int i_mesh = 0; i_mesh < N_MESHES; i_mesh++) {
+				for (int n_alloc = 1; n_alloc < alloc_counters[i_mesh]; n_alloc++)
+					min_rmses[n] = rmses[i_mesh][n_alloc][n] < min_rmses[n] ? rmses[i_mesh][n_alloc][n] : min_rmses[n];
+			}
+		}
+		for (int n = 0; n < length; n++) {
+			fprintf(MIN_RMSES, "%e ", min_rmses[n]);
+			printf("n = %d: data = %.16lf\n", n, min_rmses[n]);
+		}
 	}
 
+
+	/* ----------------------------------------------------------------------------------------------------- */
+	/*																										 																									 */
+	/* Mesh precision test																		 																							 */
+	/* 																																																			 */
+	/* ----------------------------------------------------------------------------------------------------- */
+	////////// NOTE THIS DOES NOT HAVE NEW RNG
 	int N_nxs = 60, nx_incr = 5, N;
 	int * nx_bpfs = (int *) malloc(N_nxs * sizeof(int));
 	double T, T_bin;
@@ -216,7 +243,7 @@ int main(void) {
 			/* Generate the HMM data and run the BPF with the full nx on it */
 			/* ------------------------------------------------------------ */
 			generate_hmm(rng, hmm, n_data, length, nx);
-			T = equal_runtimes_model(rng, hmm, N0s, N1s, weighted_ref, N_ref, N_trials, N_bpf, level0_meshes, n_data, RAW_BPF_TIMES, RAW_BPF_KS, RAW_BPF_MSE, ml_weighted, BPF_CENTILE_MSE);
+			T = equal_runtimes_model(rng, hmm, N0s, N1s, weighted_ref, N_ref, N_trials, N_bpf, level0_meshes, n_data, RAW_BPF_TIMES, RAW_BPF_KS, RAW_BPF_MSE, ml_weighted, BPF_CENTILE_MSE, STEPWISE_BPF_RMSE);
 
 			for (int n = 0; n < N_nxs; n++) {
 
@@ -243,6 +270,7 @@ int main(void) {
 	fclose(REF_STDS);
 	fclose(FULL_HMM_DATA);
 	fclose(FULL_REF_DATA);
+	fclose(MIN_RMSES);
 
 	double total_elapsed = (double) (clock() - timer) / (double) CLOCKS_PER_SEC;
 	int hours = (int) floor(total_elapsed / 3600.0);
@@ -299,8 +327,15 @@ void record_reference_data(HMM * hmm, w_double ** weighted_ref, int N_ref, FILE 
 }
 
 
-void output_ml_data(HMM * hmm, int N_trials, double *** raw_times, double *** raw_ks, double *** raw_mse, double *** raw_srs, int * level0_meshes, int * N1s, int * alloc_counters, FILE * ALLOC_COUNTERS, FILE * RAW_TIMES, FILE * RAW_KS, FILE * RAW_MSE, FILE * RAW_SRS, int N_data, FILE * MLBPF_CENTILE_MSE, double *** raw_qmses) {
+void output_ml_data(HMM * hmm, int N_trials, double *** raw_times, double *** raw_ks, double *** raw_mse, double *** raw_srs, int * level0_meshes, int * N1s, int * alloc_counters, FILE * ALLOC_COUNTERS, FILE * RAW_TIMES, FILE * RAW_KS, FILE * RAW_MSE, FILE * RAW_SRS, int N_data, FILE * MLBPF_CENTILE_MSE, double *** raw_qmses, int ** N0s) {
 
+	int c;
+	for (int i_mesh = 0; i_mesh < N_MESHES; i_mesh++) {
+		c = 0;
+		while ( (N0s[i_mesh][c] > 0) && (c < N_ALLOCS) )
+			c++;
+		alloc_counters[i_mesh] = c;
+	}
 	for (int i_mesh = 0; i_mesh < N_MESHES; i_mesh++) {
 		fprintf(ALLOC_COUNTERS, "%d ", alloc_counters[i_mesh]);
 		printf("Alloc counters for nx0 = %d = %d\n", level0_meshes[i_mesh], alloc_counters[i_mesh]);

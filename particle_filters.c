@@ -344,11 +344,6 @@ void ml_bootstrap_particle_filter(HMM * hmm, int * sample_sizes, int * nxs, gsl_
 	// fprintf(SIGNS, "%d %d %d\n", N0, N1, N_tot);
 	// FILE * LHOOD_OBS = fopen("lhood_obs.txt", "w");
 	// FILE * LHOOD_OBS0 = fopen("lhood_obs0.txt", "w");
-	// int N1_reg = 5, N1_tail = (int) (0.5 * (N1 - N1_reg));
-	// N1_tail = N1_tail <= 0 ? 0 : N1_tail;
-	// int N_tot_mid = (int) floor(0.5 * N_tot);
-	// int counter;
-	// double pred_mean;
 	int N_bins = (int) (N1 / 10.0);
 	double * bins = (double *) calloc(N_bins, sizeof(double));
 	double * l1_sig_thetas = (double *) malloc(N1 * sizeof(double));
@@ -371,28 +366,6 @@ void ml_bootstrap_particle_filter(HMM * hmm, int * sample_sizes, int * nxs, gsl_
 		for (int i = 0; i < N_tot; i++)
 			sig_thetas[i] = sigmoid(thetas[i], upp_bd, low_bd);
 
-		/* Partition the multilevel particles and sort */
-		// for (int i = 0; i < N0; i++) {
-		// 	l0_sig_thetas[i] = sig_thetas[i];
-		// 	l0_thetas[i] = thetas[i];
-		// }
-		// for (int i = N0; i < N_tot; i++) {
-		// 	l1_sig_thetas[i - N0] = sig_thetas[i];
-		// 	l1_thetas[i - N0] = thetas[i];
-		// }
-		// qsort(l1_sig_thetas, N1, sizeof(double), compare);
-		// qsort(l0_sig_thetas, N0, sizeof(double), compare);
-		// qsort(l1_thetas, N1, sizeof(double), compare);
-		// qsort(l0_thetas, N0, sizeof(double), compare);
-		// for (int i = 0; i < N0; i++) {
-		// 	sig_thetas[i] = l0_sig_thetas[i];
-		// 	thetas[i] = l0_thetas[i];
-		// }
-		// for (int i = N0; i < N_tot; i++) {
-		// 	sig_thetas[i] = l1_sig_thetas[i - N0];
-		// 	thetas[i] = l1_thetas[i - N0];
-		// }
-		
 
 
 		/* --------------------------------------------------------------------------------------------------------- */
@@ -442,7 +415,6 @@ void ml_bootstrap_particle_filter(HMM * hmm, int * sample_sizes, int * nxs, gsl_
 		/* --------------------------------------------------------------------------------------------------------- */
 		if (N1 > 0) {
 			regression_fit(sig_thetas, corrections, N0, N1, M_poly, poly_weights, PHI, C, C_inv, MP, C_gsl, p, C_inv_gsl);
-			// regression_fit(sig_thetas, corrections, N0, N1_reg, M_poly, poly_weights, PHI, C, C_inv, MP, C_gsl, p, C_inv_gsl);
 			for (int i = 0; i < N_tot; i++)
 				solns0[i] += poly_eval(sig_thetas[i], poly_weights, poly_degree);
 
@@ -625,11 +597,10 @@ void bootstrap_particle_filter(HMM * hmm, int N, gsl_rng * rng, w_double ** weig
 	int length = hmm->length;
 	int nx = hmm->nx;
 	int obs_pos = nx - 1;
-	double sig_sd = hmm->sig_sd, obs_sd = hmm->obs_sd, obs_sd0 = 2.0 * obs_sd;
+	double sig_sd = hmm->sig_sd, obs_sd = hmm->obs_sd;
 	double space_left = hmm->space_left, space_right = hmm->space_right, k = hmm->k;
-	double depth_scaler = 10.0;
 	double dx = (space_right - space_left) / (double) (nx - 1);
-	double obs, normaliser, x_hat, Z_obs, gamma_of_k = tgamma(k), Z_obs_ind, gamma_theta;
+	double obs, normaliser, x_hat, Z_obs, gamma_of_k = tgamma(k), gamma_theta;
 	double low_bd = hmm->low_bd, upp_bd = hmm->upp_bd;
 	long * ind = (long *) malloc(N * sizeof(long));
 	double * thetas = (double *) malloc(N * sizeof(double));
@@ -641,7 +612,6 @@ void bootstrap_particle_filter(HMM * hmm, int N, gsl_rng * rng, w_double ** weig
 	double * xs = (double *) malloc(nx * sizeof(double));
 	for (int j = 0; j < nx; j++)
 		xs[j] = space_left + j * dx;
-	Z_obs_ind = -depth_scaler * pow(xs[obs_pos], k - 1) / gamma_of_k;
 
 
 	/* Initial conditions */
@@ -683,7 +653,6 @@ void bootstrap_particle_filter(HMM * hmm, int N, gsl_rng * rng, w_double ** weig
 			sig_thetas[i] = sigmoid(thetas[i], upp_bd, low_bd);
 			gamma_theta = gamma_of_k * pow(sig_thetas[i], k);
 			solve(k, sig_thetas[i], nx, xs, Z_x, h, dx, q0_sq, gamma_theta);
-			// weights[i] = gsl_ran_gaussian_pdf(h[obs_pos] + gsl_ran_gaussian(rng, obs_sd0) - obs, obs_sd);
 			weights[i] = gsl_ran_gaussian_pdf(h[obs_pos] - obs, obs_sd);
 			normaliser += weights[i];
 
@@ -707,6 +676,7 @@ void bootstrap_particle_filter(HMM * hmm, int N, gsl_rng * rng, w_double ** weig
 			weighted[n][i].w = weights[i];
 			x_hat += sig_thetas[i] * weights[i];
 		}
+		// printf("BPF XHAT[%d] = %lf\n", n, x_hat);
 		fprintf(X_HATS, "%e ", x_hat);
 		// for (int i = 0; i < N; i++)
 			// fprintf(BPF_DISTR, "%e %e\n", weighted[n][i].x, weighted[n][i].w);
@@ -901,9 +871,8 @@ void ref_bootstrap_particle_filter(HMM * hmm, int N, gsl_rng * rng, w_double ** 
 	int length = hmm->length;
 	int nx = hmm->nx;
 	int obs_pos = nx - 1;
-	double sig_sd = hmm->sig_sd, obs_sd = hmm->obs_sd, obs_sd0 = 2.0 * obs_sd;
+	double sig_sd = hmm->sig_sd, obs_sd = hmm->obs_sd;
 	double space_left = hmm->space_left, space_right = hmm->space_right, k = hmm->k;
-	double depth_scaler = 10.0;
 	double dx = (space_right - space_left) / (double) (nx - 1);
 	double obs, normaliser, x_hat, Z_obs, gamma_of_k = tgamma(k), Z_obs_ind, gamma_theta;
 	double low_bd = hmm->low_bd, upp_bd = hmm->upp_bd;
@@ -917,7 +886,6 @@ void ref_bootstrap_particle_filter(HMM * hmm, int N, gsl_rng * rng, w_double ** 
 	double * xs = (double *) malloc(nx * sizeof(double));
 	for (int j = 0; j < nx; j++)
 		xs[j] = space_left + j * dx;
-	Z_obs_ind = -depth_scaler * pow(xs[obs_pos], k - 1) / gamma_of_k;
 
 
 	/* Initial conditions */
@@ -1092,3 +1060,27 @@ void ref_bootstrap_particle_filter(HMM * hmm, int N, gsl_rng * rng, w_double ** 
 		// 	}
 
 		// }
+
+
+		/* Partition the multilevel particles and sort */
+		// for (int i = 0; i < N0; i++) {
+		// 	l0_sig_thetas[i] = sig_thetas[i];
+		// 	l0_thetas[i] = thetas[i];
+		// }
+		// for (int i = N0; i < N_tot; i++) {
+		// 	l1_sig_thetas[i - N0] = sig_thetas[i];
+		// 	l1_thetas[i - N0] = thetas[i];
+		// }
+		// qsort(l1_sig_thetas, N1, sizeof(double), compare);
+		// qsort(l0_sig_thetas, N0, sizeof(double), compare);
+		// qsort(l1_thetas, N1, sizeof(double), compare);
+		// qsort(l0_thetas, N0, sizeof(double), compare);
+		// for (int i = 0; i < N0; i++) {
+		// 	sig_thetas[i] = l0_sig_thetas[i];
+		// 	thetas[i] = l0_thetas[i];
+		// }
+		// for (int i = N0; i < N_tot; i++) {
+		// 	sig_thetas[i] = l1_sig_thetas[i - N0];
+		// 	thetas[i] = l1_thetas[i - N0];
+		// }
+		
