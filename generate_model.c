@@ -46,8 +46,8 @@ double equal_runtimes_model(gsl_rng * rng, HMM * hmm, int ** N0s, int * N1s, w_d
 	/* Run the BPF with a set number of particles N_bpf < N_ref and record the accuracy and the mean time taken. Then for each mesh configuration, increment the level 1 particle allocation and compute the level 0 particle allocation so that the time taken for the MLBPF is roughly the same as the BPF */
 	double T, T_temp;
 	T = perform_BPF_trials(hmm, N_bpf, rng, N_trials, N_ref, weighted_ref, n_data, RAW_BPF_TIMES, RAW_BPF_KS, RAW_BPF_MSE, BPF_CENTILE_MSE, REF_XHATS, BPF_XHATS, ref_xhats, bpf_rmses, rng_counter);
-	if (n_data == 0)
-		compute_sample_sizes(hmm, rng, level0_meshes, T, N0s, N1s, N_bpf, N_trials, ml_weighted);
+	// if (n_data == 0)
+		// compute_sample_sizes(hmm, rng, level0_meshes, T, N0s, N1s, N_bpf, N_trials, ml_weighted);
 	T_temp = read_sample_sizes(hmm, N0s, N1s, N_trials);
 
 	return T;
@@ -199,10 +199,10 @@ void output_cdf(w_double ** w_particles, HMM * hmm, int N, char file_name[200]) 
 
 	for (int n = 0; n < hmm->length; n++) {
 		for (int i = 0; i < N; i++)
-			fprintf(data, "%e ", w_particles[n][i].x);
+			fprintf(data, "%.16e ", w_particles[n][i].x);
 		fprintf(data, "\n");
 		for (int i = 0; i < N; i++)
-			fprintf(data, "%e ", w_particles[n][i].w);
+			fprintf(data, "%.16e ", w_particles[n][i].w);
 		fprintf(data, "\n");
 	}
 	fclose(data);
@@ -253,7 +253,7 @@ double perform_BPF_trials(HMM * hmm, int N_bpf, gsl_rng * rng, int N_trials, int
 	for (int n = 0; n < length; n++) {
 		for (int i = 0; i < N_ref; i++)
 			ref_xhats[n] += weighted_ref[n][i].w * weighted_ref[n][i].x;
-		fprintf(REF_XHATS, "%e ", ref_xhats[n]);
+		fprintf(REF_XHATS, "%.16e ", ref_xhats[n]);
 	}
 	fprintf(REF_XHATS, "\n");
 
@@ -282,7 +282,7 @@ double perform_BPF_trials(HMM * hmm, int N_bpf, gsl_rng * rng, int N_trials, int
 			bpf_xhat = 0.0;
 			for (int i = 0; i < N_bpf; i++)
 				bpf_xhat += weighted[n][i].w * weighted[n][i].x;
-			fprintf(BPF_XHATS, "%e ", bpf_xhat);
+			fprintf(BPF_XHATS, "%.16e ", bpf_xhat);
 		}
 		fprintf(BPF_XHATS, "\n");
 
@@ -291,10 +291,10 @@ double perform_BPF_trials(HMM * hmm, int N_bpf, gsl_rng * rng, int N_trials, int
 		q_mse = 0.0;
 		for (int n = 0; n < length; n++)
 			q_mse += (ref_centiles[n] - bpf_centiles[n]) * (ref_centiles[n] - bpf_centiles[n]);
-		fprintf(BPF_CENTILE_MSE, "%e ", sqrt(q_mse / (double) length));
-		fprintf(RAW_BPF_TIMES, "%e ", elapsed);
-		fprintf(RAW_BPF_KS, "%e ", ks);
-		fprintf(RAW_BPF_MSE, "%e ", mse);
+		fprintf(BPF_CENTILE_MSE, "%.16e ", sqrt(q_mse / (double) length));
+		fprintf(RAW_BPF_TIMES, "%.16e ", elapsed);
+		fprintf(RAW_BPF_KS, "%.16e ", ks);
+		fprintf(RAW_BPF_MSE, "%.16e ", mse);
 
 		for (int n = 0; n < length; n++) /////
 			bpf_rmses[n] += log10(sqrt(compute_mse(weighted_ref, weighted, n + 1, N_ref, N_bpf))) / (double) N_trials;
@@ -346,10 +346,10 @@ double perform_BPF_trials_var_nx(HMM * hmm, int N_bpf, gsl_rng * rng, int N_tria
 		q_mse = 0.0;
 		for (int n = 0; n < length; n++)
 			q_mse += (ref_centiles[n] - bpf_centiles[n]) * (ref_centiles[n] - bpf_centiles[n]);
-		fprintf(BPF_CENTILE_MSE, "%e ", sqrt(q_mse / (double) length));
-		fprintf(RAW_BPF_TIMES, "%e ", elapsed);
-		fprintf(RAW_BPF_KS, "%e ", ks);
-		fprintf(RAW_BPF_MSE, "%e ", mse);
+		fprintf(BPF_CENTILE_MSE, "%.16e ", sqrt(q_mse / (double) length));
+		fprintf(RAW_BPF_TIMES, "%.16e ", elapsed);
+		fprintf(RAW_BPF_KS, "%.16e ", ks);
+		fprintf(RAW_BPF_MSE, "%.16e ", mse);
 
 	}
 
@@ -388,7 +388,7 @@ void compute_sample_sizes(HMM * hmm, gsl_rng * rng, int * level0_meshes, double 
 	/* Variables for printing to file */
 	/* ------------------------------ */
 	FILE * N0s_f = fopen("N0s_data.txt", "w");
-	fprintf(N0s_f, "%d %e\n", N_bpf, T);
+	fprintf(N0s_f, "%d %.16e\n", N_bpf, T);
 
 
 	/* Compute the particle allocations */
@@ -578,7 +578,7 @@ double read_sample_sizes(HMM * hmm, int ** N0s, int * N1s, int N_trials) {
 	double T;
 	int N_MESHES = hmm->N_MESHES, N_ALLOCS = hmm->N_ALLOCS;
 	FILE * N0s_f = fopen("N0s_data.txt", "r");
-	fscanf(N0s_f, "%d %lf\n", &N_bpf, &T);
+	fscanf(N0s_f, "%d %le\n", &N_bpf, &T);
 	for (int i_mesh = 0; i_mesh < N_MESHES; i_mesh++) {
 		for (int n_alloc = 0; n_alloc < N_ALLOCS; n_alloc++)
 			fscanf(N0s_f, "%d ", &N0s[i_mesh][n_alloc]);

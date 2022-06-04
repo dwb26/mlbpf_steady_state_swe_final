@@ -219,11 +219,12 @@ if mean_rmse:
 			means[n_alloc] = np.mean(np.log10(rmse_arr[i_mesh, n_alloc, :]))
 		axs2[0].plot(N1s[:alloc_counters[i_mesh]], means, label=level0s[i_mesh], marker="o", color=colors[i_mesh], markersize=3)
 		mins.append(np.min(means))
-	print(np.min(mins))
+		print(means)
+	# print(np.min(mins))
 	axs2[0].set_title("Mean(log10(RMSE))", fontsize=9)
 	axs2[0].legend()
 	# axs2[0].set_xticks([])
-print(bpf_mean_rmse_log10)
+# print(bpf_mean_rmse_log10)
 
 
 # ------------------------------------------------------------------------------------------------------------------- #

@@ -14,6 +14,7 @@ stepwise_bpf_rmse = np.array(list(map(float, stepwise_bpf_rmse_f.readline().spli
 # ratio_min_rmses = min_rmses / stepwise_bpf_rmse
 ratio_min_rmses = stepwise_bpf_rmse / min_rmses
 print(stepwise_bpf_rmse)
+print(min_rmses)
 
 fig, axs = plt.subplots(nrows=2, ncols=1, figsize=(10, 7))
 axs[0].plot(range(len(min_rmses)), min_rmses, label="Optimal ML RMSE")
