@@ -2,6 +2,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 plt.style.use("ggplot")
 
+# Could maybe rewrite this with the xhats instead
+
 min_rmses_f = open("min_rmses.txt", "r")
 stepwise_bpf_rmse_f = open("stepwise_bpf_rmse.txt", "r")
 ml_parameters = open("ml_parameters.txt", "r")

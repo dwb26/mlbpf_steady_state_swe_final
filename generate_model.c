@@ -26,8 +26,17 @@ double equal_runtimes_model(gsl_rng * rng, HMM * hmm, int ** N0s, int * N1s, w_d
 	/* Reference distribution */
 	/* ---------------------- */
 	/* Produce the benchmark reference distribution with the BPF. Set run_ref to 0 if the reference data already esists */
-	if (run_ref == 1)
+	if (run_ref == 1) {
 		run_reference_filter(rng, hmm, N_ref, weighted_ref, n_data);
+		rng_counter++;
+		gsl_rng_set(rng, rng_counter);
+
+		for (int n = 0; n < 3; n++) {
+			for (int i = 0; i < 25; i++)
+				printf("(w, x)[%d, %d] = %e, %e\n", n, i, weighted_ref[n][i].w, weighted_ref[n][i].x);
+		}
+		printf("\n");
+	}
 	else
 		read_cdf(weighted_ref, hmm, n_data);
 
@@ -37,8 +46,8 @@ double equal_runtimes_model(gsl_rng * rng, HMM * hmm, int ** N0s, int * N1s, w_d
 	/* Run the BPF with a set number of particles N_bpf < N_ref and record the accuracy and the mean time taken. Then for each mesh configuration, increment the level 1 particle allocation and compute the level 0 particle allocation so that the time taken for the MLBPF is roughly the same as the BPF */
 	double T, T_temp;
 	T = perform_BPF_trials(hmm, N_bpf, rng, N_trials, N_ref, weighted_ref, n_data, RAW_BPF_TIMES, RAW_BPF_KS, RAW_BPF_MSE, BPF_CENTILE_MSE, REF_XHATS, BPF_XHATS, ref_xhats, bpf_rmses, rng_counter);
-	// if (n_data == 0)
-		// compute_sample_sizes(hmm, rng, level0_meshes, T, N0s, N1s, N_bpf, N_trials, ml_weighted);
+	if (n_data == 0)
+		compute_sample_sizes(hmm, rng, level0_meshes, T, N0s, N1s, N_bpf, N_trials, ml_weighted);
 	T_temp = read_sample_sizes(hmm, N0s, N1s, N_trials);
 
 	return T;
@@ -212,22 +221,27 @@ void read_cdf(w_double ** w_particles, HMM * hmm, int n_data) {
 	sprintf(ref_name, "ref_particles_sig_sd=%s_obs_sd=%s_len=%s_s0=%s_n_data=%s.txt", sig_sd_str, obs_sd_str, len_str, s0_str, n_data_str);
 	FILE * data = fopen(ref_name, "r");
 	fscanf(data, "%d %d\n", &N, &length);
+	puts(ref_name);
 
 	for (int n = 0; n < length; n++) {
 		for (int i = 0; i < N; i++)
-			fscanf(data, "%lf ", &w_particles[n][i].x);
+			fscanf(data, "%le ", &w_particles[n][i].x);
 		for (int i = 0; i < N; i++)
-			fscanf(data, "%lf ", &w_particles[n][i].w);
+			fscanf(data, "%le ", &w_particles[n][i].w);
 	}
 	fclose(data);
+	for (int n = 0; n < 3; n++) {
+		for (int i = 0; i < 25; i++)
+			printf("(w, x)[%d, %d] = %e, %e\n", n, i, w_particles[n][i].w, w_particles[n][i].x);
+	}
+	printf("\n");
 }
 
 
 double perform_BPF_trials(HMM * hmm, int N_bpf, gsl_rng * rng, int N_trials, int N_ref, w_double ** weighted_ref, int n_data, FILE * RAW_BPF_TIMES, FILE * RAW_BPF_KS, FILE * RAW_BPF_MSE, FILE * BPF_CENTILE_MSE, FILE * REF_XHATS, FILE * BPF_XHATS, double * ref_xhats, double * bpf_rmses, int rng_counter) {
 
 	int length = hmm->length;
-	double centile = 0.95;
-	double ks = 0.0, elapsed = 0.0, mse = 0.0, mean_elapsed = 0.0, q_mse = 0.0, bpf_xhat = 0.0, ref_xhat = 0.0;
+	double ks = 0.0, elapsed = 0.0, mse = 0.0, mean_elapsed = 0.0, q_mse = 0.0, bpf_xhat = 0.0, centile = 0.95;
 	double * ref_centiles = (double *) malloc(length * sizeof(double));
 	compute_nth_percentile(weighted_ref, N_ref, centile, length, ref_centiles);
 	double * bpf_centiles = (double *) malloc(length * sizeof(double));
@@ -247,19 +261,24 @@ double perform_BPF_trials(HMM * hmm, int N_bpf, gsl_rng * rng, int N_trials, int
 	for (int n_trial = 0; n_trial < N_trials; n_trial++) {
 
 		/* Run the simulation for the BPF */
-		gsl_rng_set(rng, rng_counter);
 		clock_t bpf_timer = clock();
 		bootstrap_particle_filter(hmm, N_bpf, rng, weighted);
 		elapsed = (double) (clock() - bpf_timer) / (double) CLOCKS_PER_SEC;
 		mean_elapsed += elapsed;
 		rng_counter++;
+		gsl_rng_set(rng, rng_counter);
+		
 
-		/* Compute the KS statistic for the run */
+		/* Trial analysis */
+		/* -------------- */
 		ks = 0.0;
 		for (int n = 0; n < length; n++) {
+
+			/* Compute the BPF KS statistic for the trial */
 			qsort(weighted[n], N_bpf, sizeof(w_double), weighted_double_cmp);
 			ks += ks_statistic(N_ref, weighted_ref[n], N_bpf, weighted[n]) / (double) length;
 
+			/* Compute the BPF mean estimate for the trial */
 			bpf_xhat = 0.0;
 			for (int i = 0; i < N_bpf; i++)
 				bpf_xhat += weighted[n][i].w * weighted[n][i].x;
@@ -277,7 +296,7 @@ double perform_BPF_trials(HMM * hmm, int N_bpf, gsl_rng * rng, int N_trials, int
 		fprintf(RAW_BPF_KS, "%e ", ks);
 		fprintf(RAW_BPF_MSE, "%e ", mse);
 
-		for (int n = 0; n < length; n++)
+		for (int n = 0; n < length; n++) /////
 			bpf_rmses[n] += log10(sqrt(compute_mse(weighted_ref, weighted, n + 1, N_ref, N_bpf))) / (double) N_trials;
 
 	}

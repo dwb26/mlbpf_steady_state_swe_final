@@ -42,15 +42,15 @@ for n_data in range(N_data):
 	bpf_mse.extend(list(map(float, raw_bpf_mse.readline().split())))
 	bpf_ks.extend(list(map(float, raw_bpf_ks.readline().split())))
 
-bpf_mse_new = []; bpf_ks_new = []
-for x in bpf_mse:
-	if not pd.isna(x):
-		bpf_mse_new.append(x)
-for x in bpf_ks:
-	if not pd.isna(x):
-		bpf_ks_new.append(x)
-bpf_mse = bpf_mse_new
-bpf_ks = bpf_ks_new
+# bpf_mse_new = []; bpf_ks_new = []
+# for x in bpf_mse:
+# 	if not pd.isna(x):
+# 		bpf_mse_new.append(x)
+# for x in bpf_ks:
+# 	if not pd.isna(x):
+# 		bpf_ks_new.append(x)
+# bpf_mse = bpf_mse_new
+# bpf_ks = bpf_ks_new
 bpf_rmse = np.sqrt(bpf_mse)
 bpf_mean_mse_log10 = np.mean(np.log10(bpf_mse))
 bpf_median_mse_log10 = np.median(np.log10(bpf_mse))
@@ -151,8 +151,8 @@ fig1.suptitle(r"N_data = {}, N_trials = {}, nx = {}, N_bpf = {}, $\sigma_{} = {}
 fig2.subplots_adjust(hspace=0.4)
 fig2.suptitle(r"N_data = {}, N_trials = {}, nx = {}, N_bpf = {}, $\sigma_{} = {}$, $\sigma_{} = {}$, len = {}".format(N_data, N_trials, nx, N_bpf, "s", sig_sd, "o", obs_sd, length))
 
-# ks_boxplot = True
-ks_boxplot = False
+ks_boxplot = True
+# ks_boxplot = False
 # mse_boxplot = True
 mse_boxplot = False
 mean_rmse = True
