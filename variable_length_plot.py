@@ -8,6 +8,8 @@ hmm_data = open("hmm_data.txt", "r")
 ml_parameters = open("ml_parameters.txt", "r")
 N1s_data = open("N1s_data.txt", "r")
 alloc_counters_f = open("alloc_counters.txt", "r")
+ref_stds_f = open("ref_stds.txt", "r")
+
 
 
 # --------------------------------------------------- HMM data ------------------------------------------------------ #
@@ -51,6 +53,10 @@ for n_trial in range(N_data * N_trials):
 mean_bpf_rmse = np.mean(np.log10(bpf_rmse))
 var_mean_bpf_rmse = np.mean(np.log10(var_bpf_rmse), axis=0)
 
+# Read in the stepwise reference stds
+ref_stds = np.array(list(map(float, ref_stds_f.readline().split()))).reshape((N_data, length))
+ref_stds = np.mean(ref_stds, axis=0)
+
 
 
 # ------------------------------------------- Multilevel parameters ------------------------------------------------- #
@@ -67,6 +73,7 @@ var_mean_ml_rmse = np.zeros((N_MESHES, N_ALLOCS, length))
 min_mean_ml_rmse = np.empty(length)
 max_mean_ml_rmse = np.empty(length)
 
+# Compute the MLBPF RMSE over all iterates #
 for i_mesh in range(N_MESHES):
 	nx0 = level0s[i_mesh]
 	for n_alloc in range(alloc_counters[i_mesh]):
@@ -91,16 +98,28 @@ for i_mesh in range(N_MESHES):
 		for n in range(length):
 			var_mean_ml_rmse[i_mesh, n_alloc, n] = np.mean(np.log10(var_ml_rmse[i_mesh, n_alloc, :, n]))
 
+# Find the stepwise minimums of the MLBPF RMSE #
+temp_mins = np.empty(N_MESHES)
+N1_mins = np.empty(length)
+level0_mins = np.empty(length)
+color_mins = np.empty(length, dtype=int)
 for n in range(length):
-	mins = []; maxs = []
+	mins = []; maxs = []; N1_mins_ind = []; nx0_mins_t = [];
 	for i_mesh in range(N_MESHES):
 		mins.append(np.min(var_mean_ml_rmse[i_mesh, :alloc_counters[i_mesh], n]))
 		maxs.append(np.max(var_mean_ml_rmse[i_mesh, :alloc_counters[i_mesh], n]))
+		N1_mins_ind.append(np.argmin(var_mean_ml_rmse[i_mesh, :alloc_counters[i_mesh], n]))
+	for i_mesh in range(N_MESHES):
+		temp_mins[i_mesh] = var_mean_ml_rmse[i_mesh, N1_mins_ind[i_mesh], n]
+	N1_mins[n] = N1s[N1_mins_ind[np.argmin(temp_mins)]]
+	level0_mins[n] = level0s[np.argmin(temp_mins)]
+	color_mins[n] = np.argmin(temp_mins)
 	min_mean_ml_rmse[n] = np.min(mins)
 	max_mean_ml_rmse[n] = np.max(maxs)
+
 glob_min = np.min((np.min(min_mean_ml_rmse), np.min(var_mean_bpf_rmse)))
 glob_max = np.max((np.max(max_mean_ml_rmse), np.max(var_mean_bpf_rmse)))
-# print((glob_min, glob_max))
+glob_min = glob_min - 0.15 * np.abs(glob_min); glob_max = glob_max + 0.15 * np.abs(glob_max)
 # print(var_mean_bpf_rmse)
 # print(min_mean_ml_rmse)
 
@@ -108,47 +127,57 @@ glob_max = np.max((np.max(max_mean_ml_rmse), np.max(var_mean_bpf_rmse)))
 
 # ---------------------------------------------------- Plotting ----------------------------------------------------- #
 # ------------------------------------------------------------------------------------------------------------------- #
+colors = ["orchid", "mediumpurple", "royalblue", "powderblue", "mediumseagreen", "greenyellow", "orange", "tomato", "firebrick"]
 
-# This is the final iterate RMSE plot #
+# These are the sequential RMSE plots #
 # ----------------------------------- #
-fig1, ax1 = plt.subplots(nrows=1, ncols=1, figsize=(10, 7))
-ax1.plot(N1s[:max_allocs], mean_bpf_rmse * np.ones(max_allocs), color="black", label="BPF")
-for i_mesh in range(N_MESHES):
-	ax1.plot(N1s[:alloc_counters[i_mesh]], mean_ml_rmse[i_mesh, :alloc_counters[i_mesh]], label=level0s[i_mesh], marker="o", markersize=3)
-ax1.set_title("Mean log10(RMSE) at n = {}".format(custm_length - 1))
-ax1.legend()
+# for n in range(custm_length):
+# 	fig1, ax1 = plt.subplots(nrows=1, ncols=1, figsize=(10, 7))
+# 	ax1.plot(N1s[:max_allocs], var_mean_bpf_rmse[n] * np.ones(max_allocs), color="black", label="BPF")
+# 	mins = []; N1_min = []; nx0_min = []
+# 	temp_min = glob_max
+# 	for i_mesh in range(N_MESHES):
+# 		ax1.plot(N1s[:alloc_counters[i_mesh]], var_mean_ml_rmse[i_mesh, :alloc_counters[i_mesh], n], label=level0s[i_mesh], marker="o", markersize=3)
+# 	ax1.set(ylim=(glob_min, glob_max))
+# 	ax1.set_title("N_BPF = {}, n = {}".format(N_bpf, n))
+# 	ax1.set_xlabel("N1")
+# 	ax1.legend()
+# 	plt.savefig("seq_RMSE_n={}_len={}.png".format(n, length))
+
+
+# This is the sequence of ML RMSE mins wrt allocation and level 0 mesh #
+# -------------------------------------------------------------------- #
+# fig2, ax2 = plt.subplots(nrows=1, ncols=1, figsize=(10, 7))
+# for n in range(custm_length):
+# 	ax2.plot(N1_mins[n], n, marker="o", color=colors[color_mins[n]], label=level0_mins[n])
+# ax2.set_xlabel(r"$N_1$")
+# ax2.set_ylabel("n")
+# ax2.legend()
+# plt.savefig("sequential_mins_len=50.png")
 
 
 # These are the min RMSE plots #
 # ---------------------------- #
-fig2, ax2 = plt.subplots(nrows=2, ncols=1, figsize=(10, 7))
-ax2[0].plot(range(length), var_mean_bpf_rmse, color="black", label="BPF RMSE")
-ax2[0].plot(range(length), min_mean_ml_rmse, color="red", label="Optimal MLBPF RMSE")
-ax2[0].set_title("N(BPF) = {}".format(N_bpf))
-ax2[0].set_xticks([])
-ax2[0].legend()
+fig3, ax3 = plt.subplots(nrows=3, ncols=1, figsize=(10, 7))
+ax3[0].plot(range(custm_length), var_mean_bpf_rmse[:custm_length], color="black", label="BPF log10(RMSE)")
+ax3[0].plot(range(custm_length), min_mean_ml_rmse[:custm_length], color="red", label="Optimal MLBPF log10(RMSE)")
+ax3[0].set_xticks([])
+ax3[0].legend()
 
 ratio_min_rmses = var_mean_bpf_rmse / min_mean_ml_rmse
-ax2[1].plot(range(length), ratio_min_rmses, label="ML / BPF")
-ax2[1].plot(range(length), np.ones(length), color="black")
-ax2[1].set_xlabel("Iterate")
-ax2[1].set_title("Ratio")
-ax2[1].legend()
+ax3[1].plot(range(custm_length), ratio_min_rmses[:custm_length], label="ML / BPF")
+ax3[1].plot(range(custm_length), np.ones(custm_length), color="black")
+ax3[1].set_xticks([])
+ax3[1].legend()
 
+sq_diffs = (min_mean_ml_rmse - var_mean_bpf_rmse) ** 2 / ref_stds
+ax3[2].plot(range(custm_length), sq_diffs[:custm_length] * 100, marker="o", markersize=3)
+ax3[2].set_xlabel("n")
+ax3[2].set_ylabel("%")
+# ax3[2].set_title(r"$(rmse_n(ML) - rmse_n(BPF))^2 / \sigma(ref_n)$") //// Do we sqrt?
 
-# These are the sequential RMSE plots #
-# ----------------------------------- #
-for n in range(length):
-	fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(10, 7))
-	ax.plot(N1s[:max_allocs], var_mean_bpf_rmse[n] * np.ones(max_allocs), color="black", label="BPF")
-	for i_mesh in range(N_MESHES):
-		ax.plot(N1s[:alloc_counters[i_mesh]], var_mean_ml_rmse[i_mesh, :alloc_counters[i_mesh], n], label=level0s[i_mesh], marker="o", markersize=3)
-	ax.set(ylim=(glob_min, glob_max))
-	ax.set_title("N_BPF = {}, n = {}".format(N_bpf, n))
-	ax.set_xlabel("N1")
-	ax.legend()
-	plt.savefig("seq_RMSE_n={}.png".format(n))
-
+fig3.suptitle("N(BPF) = {}".format(N_bpf))
+plt.savefig("min_rmse_len={}.png".format(length))
 plt.show()
 
 
@@ -161,3 +190,12 @@ plt.show()
 
 
 
+# This is the final iterate RMSE plot #
+# ----------------------------------- #
+# fig1, ax1 = plt.subplots(nrows=1, ncols=1, figsize=(10, 7))
+# ax1.plot(N1s[:max_allocs], mean_bpf_rmse * np.ones(max_allocs), color="black", label="BPF")
+# for i_mesh in range(N_MESHES):
+# 	ax1.plot(N1s[:alloc_counters[i_mesh]], mean_ml_rmse[i_mesh, :alloc_counters[i_mesh]], label=level0s[i_mesh], marker="o", markersize=3)
+# 	print(mean_ml_rmse[i_mesh, :alloc_counters[i_mesh]])
+# ax1.set_title("Mean log10(RMSE) at n = {}".format(custm_length - 1))
+# ax1.legend()

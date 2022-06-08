@@ -20,8 +20,8 @@
 
 double equal_runtimes_model(gsl_rng * rng, HMM * hmm, int ** N0s, int * N1s, w_double ** weighted_ref, int N_ref, int N_trials, int N_bpf, int * level0_meshes, int n_data, FILE * RAW_BPF_TIMES, FILE * RAW_BPF_KS, FILE * RAW_BPF_MSE, w_double ** ml_weighted, FILE * BPF_CENTILE_MSE, FILE * REF_XHATS, FILE * BPF_XHATS, double * ref_xhats, double * bpf_rmses, int rng_counter) {
 
-	int run_ref = 1;		// REF ON
-	// int run_ref = 0;		// REF OFF
+	// int run_ref = 1;		// REF ON
+	int run_ref = 0;		// REF OFF
 
 	/* Reference distribution */
 	/* ---------------------- */

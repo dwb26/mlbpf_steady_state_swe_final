@@ -22,7 +22,7 @@ const int N_MESHES = 7;
 
 void output_parameters(int N_trials, int * level0_meshes, int nx, int * N1s, int N_data, int N_bpf);
 void record_reference_data(HMM * hmm, w_double ** weighted_ref, int N_ref, FILE * FULL_HMM_DATA, FILE * FULL_REF_DATA, FILE * REF_STDS);
-void output_ml_data(HMM * hmm, int N_trials, double *** raw_times, double *** raw_ks, double *** raw_mse, double *** raw_srs, int * level0_meshes, int * N1s, int * alloc_counters, FILE * ALLOC_COUNTERS, FILE * RAW_TIMES, FILE * RAW_KS, FILE * RAW_MSE, FILE * RAW_SRS, int N_data, FILE * MLBPF_CENTILE_MSE, double *** raw_qmses, int ** N0s, double **** raw_xhats);
+void output_ml_data(HMM * hmm, int N_trials, double *** raw_times, double *** raw_ks, double *** raw_mse, double *** raw_srs, int * level0_meshes, int * N1s, int * alloc_counters, FILE * ALLOC_COUNTERS, FILE * RAW_TIMES, FILE * RAW_KS, FILE * RAW_MSE, FILE * RAW_SRS, int N_data, FILE * MLBPF_CENTILE_MSE, double *** raw_qmses, int ** N0s);
 
 static int compare (const void * a, const void * b)
 {
@@ -47,12 +47,11 @@ int main(void) {
 	/* Main experiment parameters */
 	/* -------------------------- */
 	int N_data = 3;
-	int N_trials = 3;
-	int length = 10, nx = 500;
-	// int N_ref = 500000;
-	int N_ref = 5000;
-	int N_bpf = 1000;
-	// int N_bpf = 5000;
+	int N_trials = 10;
+	int length = 50, nx = 500;
+	int N_ref = 500000;
+	// int N_bpf = 1000;
+	int N_bpf = 5000;
 	// int N_bpf = 10000;
 	// int N_bpf = 15000;	
 	// int level0_meshes[N_MESHES] = { 300, 200, 150, 100, 50, 25 };
@@ -63,9 +62,9 @@ int main(void) {
 	int level0_meshes[N_MESHES] = { 350, 250, 200, 150, 125, 100, 75 };
 	// int level0_meshes[N_MESHES] = { 650, 450, 250, 125, 75 };
 	// int N1s[N_ALLOCS] = { 0, 75, 125, 250, 300, 400, 450 };
-	int N1s[N_ALLOCS] = { 0, 50, 125, 250, 500, 750, 900 };	
+	// int N1s[N_ALLOCS] = { 0, 50, 125, 250, 500, 750, 900 };
 	// int N1s[N_ALLOCS] = { 0, 125, 250, 500, 1000, 1500, 2000 };
-	// int N1s[N_ALLOCS] = { 0, 100, 250, 500, 1000, 2000, 4000 };
+	int N1s[N_ALLOCS] = { 0, 100, 250, 500, 1000, 2000, 4000 };
 	// int level0_meshes[N_MESHES] = { 100 };
 	// int N1s[N_ALLOCS] = { 500 };
 	int nxs[N_LEVELS] = { 0, nx };
@@ -195,8 +194,6 @@ int main(void) {
 							raw_mse[i_mesh][n_alloc][n_data * N_trials + n_trial] = -1;
 							raw_ks[i_mesh][n_alloc][n_data * N_trials + n_trial] = -1;
 							raw_qmses[i_mesh][n_alloc][n_data * N_trials + n_trial] = -1;
-							for (int n = 0; n < length; n++)
-								raw_xhats[i_mesh][n_alloc][n_data * N_trials + n_trial][n] = -1;
 						}
 					}
 					else {
@@ -239,7 +236,7 @@ int main(void) {
 
 		/* Post processing */
 		/* --------------- */
-		output_ml_data(hmm, N_trials, raw_times, raw_ks, raw_mse, raw_srs, level0_meshes, N1s, alloc_counters, ALLOC_COUNTERS, RAW_TIMES, RAW_KS, RAW_MSE, RAW_SRS, N_data, MLBPF_CENTILE_MSE, raw_qmses, N0s, raw_xhats);
+		output_ml_data(hmm, N_trials, raw_times, raw_ks, raw_mse, raw_srs, level0_meshes, N1s, alloc_counters, ALLOC_COUNTERS, RAW_TIMES, RAW_KS, RAW_MSE, RAW_SRS, N_data, MLBPF_CENTILE_MSE, raw_qmses, N0s);
 		for (int n = 0; n < length; n++) {
 			min_rmses[n] = 100000.0;
 			for (int i_mesh = 0; i_mesh < N_MESHES; i_mesh++) {
@@ -360,7 +357,7 @@ void record_reference_data(HMM * hmm, w_double ** weighted_ref, int N_ref, FILE 
 }
 
 
-void output_ml_data(HMM * hmm, int N_trials, double *** raw_times, double *** raw_ks, double *** raw_mse, double *** raw_srs, int * level0_meshes, int * N1s, int * alloc_counters, FILE * ALLOC_COUNTERS, FILE * RAW_TIMES, FILE * RAW_KS, FILE * RAW_MSE, FILE * RAW_SRS, int N_data, FILE * MLBPF_CENTILE_MSE, double *** raw_qmses, int ** N0s, double **** raw_xhats) {
+void output_ml_data(HMM * hmm, int N_trials, double *** raw_times, double *** raw_ks, double *** raw_mse, double *** raw_srs, int * level0_meshes, int * N1s, int * alloc_counters, FILE * ALLOC_COUNTERS, FILE * RAW_TIMES, FILE * RAW_KS, FILE * RAW_MSE, FILE * RAW_SRS, int N_data, FILE * MLBPF_CENTILE_MSE, double *** raw_qmses, int ** N0s) {
 
 	int c;
 	for (int i_mesh = 0; i_mesh < N_MESHES; i_mesh++) {
