@@ -56,6 +56,8 @@ var_mean_bpf_rmse = np.mean(np.log10(var_bpf_rmse), axis=0)
 # Read in the stepwise reference stds
 ref_stds = np.array(list(map(float, ref_stds_f.readline().split()))).reshape((N_data, length))
 ref_stds = np.mean(ref_stds, axis=0)
+mean_ref_xhats = np.mean(ref_xhats, axis=0)
+N1_0_mean_ml_xhats = np.zeros((N_MESHES, length))
 
 
 
@@ -82,6 +84,8 @@ for i_mesh in range(N_MESHES):
 			raw_ml_xhats_f = open("raw_ml_xhats_nx0={}_N1={}_n_data={}.txt".format(nx0, N1, n_data), "r")
 			for n_trial in range(N_trials):
 				ml_xhats[n_data * N_trials + n_trial] = list(map(float, raw_ml_xhats_f.readline().split()))
+		if N1 == 0:
+			N1_0_mean_ml_xhats[i_mesh] = np.mean(ml_xhats, axis=0)
 		data_set = 0
 		for n_trial in range(N_data * N_trials):
 			rmse = np.sqrt(np.mean((ref_xhats[data_set, :custm_length] - ml_xhats[n_trial, :custm_length]) ** 2))
@@ -158,26 +162,39 @@ colors = ["orchid", "mediumpurple", "royalblue", "powderblue", "mediumseagreen",
 
 # These are the min RMSE plots #
 # ---------------------------- #
-fig3, ax3 = plt.subplots(nrows=3, ncols=1, figsize=(10, 7))
-ax3[0].plot(range(custm_length), var_mean_bpf_rmse[:custm_length], color="black", label="BPF log10(RMSE)")
-ax3[0].plot(range(custm_length), min_mean_ml_rmse[:custm_length], color="red", label="Optimal MLBPF log10(RMSE)")
-ax3[0].set_xticks([])
-ax3[0].legend()
+# fig3, ax3 = plt.subplots(nrows=3, ncols=1, figsize=(10, 7))
+# ax3[0].plot(range(custm_length), var_mean_bpf_rmse[:custm_length], color="black", label="BPF log10(RMSE)")
+# ax3[0].plot(range(custm_length), min_mean_ml_rmse[:custm_length], color="red", label="Optimal MLBPF log10(RMSE)")
+# ax3[0].set_xticks([])
+# ax3[0].legend()
 
-ratio_min_rmses = var_mean_bpf_rmse / min_mean_ml_rmse
-ax3[1].plot(range(custm_length), ratio_min_rmses[:custm_length], label="ML / BPF")
-ax3[1].plot(range(custm_length), np.ones(custm_length), color="black")
-ax3[1].set_xticks([])
-ax3[1].legend()
+# ratio_min_rmses = var_mean_bpf_rmse / min_mean_ml_rmse
+# ax3[1].plot(range(custm_length), ratio_min_rmses[:custm_length], label="ML / BPF")
+# ax3[1].plot(range(custm_length), np.ones(custm_length), color="black")
+# ax3[1].set_xticks([])
+# ax3[1].legend()
 
-sq_diffs = (min_mean_ml_rmse - var_mean_bpf_rmse) ** 2 / ref_stds
-ax3[2].plot(range(custm_length), sq_diffs[:custm_length] * 100, marker="o", markersize=3)
-ax3[2].set_xlabel("n")
-ax3[2].set_ylabel("%")
-# ax3[2].set_title(r"$(rmse_n(ML) - rmse_n(BPF))^2 / \sigma(ref_n)$") //// Do we sqrt?
+# sq_diffs = (min_mean_ml_rmse - var_mean_bpf_rmse) ** 2 / ref_stds
+# ax3[2].plot(range(custm_length), sq_diffs[:custm_length] * 100, marker="o", markersize=3)
+# ax3[2].set_xlabel("n")
+# ax3[2].set_ylabel("%")
+# # ax3[2].set_title(r"$(rmse_n(ML) - rmse_n(BPF))^2 / \sigma(ref_n)$") //// Do we sqrt?
 
-fig3.suptitle("N(BPF) = {}".format(N_bpf))
-plt.savefig("min_rmse_len={}.png".format(length))
+# fig3.suptitle("N(BPF) = {}".format(N_bpf))
+# plt.savefig("min_rmse_len={}.png".format(length))
+
+
+# These are the mean drift plots #
+# ------------------------------ #
+fig4, ax4 = plt.subplots(nrows=1, ncols=1, figsize=(10, 7))
+ax4.plot(range(length), mean_ref_xhats, label="ref xhats", color="black")
+for i_mesh in range(N_MESHES):
+	ax4.plot(range(length), N1_0_mean_ml_xhats[i_mesh], label=level0s[i_mesh], marker="o", markersize=3)
+ax4.set_title(r"Drift of ML xhats for $N_1=0$")
+ax4.set_xlabel("n")
+ax4.legend()
+plt.savefig("drift_plots.png")
+
 plt.show()
 
 

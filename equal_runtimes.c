@@ -66,7 +66,7 @@ int main(void) {
 	// int N1s[N_ALLOCS] = { 0, 125, 250, 500, 1000, 1500, 2000 };
 	int N1s[N_ALLOCS] = { 0, 100, 250, 500, 1000, 2000, 4000 };
 	// int level0_meshes[N_MESHES] = { 100 };
-	// int N1s[N_ALLOCS] = { 500 };
+	// int N1s[N_ALLOCS] = { 0 };
 	int nxs[N_LEVELS] = { 0, nx };
 	int ** N0s = (int **) malloc(N_MESHES * sizeof(int *));	
 	int * sample_sizes = (int *) malloc(N_LEVELS * sizeof(int));
