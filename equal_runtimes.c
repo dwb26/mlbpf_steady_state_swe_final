@@ -209,7 +209,7 @@ int main(void) {
 							compute_nth_percentile(ml_weighted, N_tot, centile, length, mlbpf_centiles);
 							for (int n = 0; n < length; n++) {
 								qsort(ml_weighted[n], N_tot, sizeof(w_double), weighted_double_cmp);
-								rmses[i_mesh][n_alloc][n] += log10(sqrt(compute_mse(weighted_ref, ml_weighted, n + 1, N_ref, N_tot))) / (double) N_trials / (double) N_data;
+								// rmses[i_mesh][n_alloc][n] += log10(sqrt(compute_mse(weighted_ref, ml_weighted, n + 1, N_ref, N_tot))) / (double) N_trials / (double) N_data;
 								ks += ks_statistic(N_ref, weighted_ref[n], N_tot, ml_weighted[n]) / (double) length;
 								q_mse += (ref_centiles[n] - mlbpf_centiles[n]) * (ref_centiles[n] - mlbpf_centiles[n]) / (double) length;
 
@@ -217,7 +217,7 @@ int main(void) {
 								ml_xhat = 0.0;
 								for (int i = 0; i < N_tot; i++)
 									ml_xhat += ml_weighted[n][i].w * ml_weighted[n][i].x;
-								fprintf(DATA, "%e ", ml_xhat);
+								fprintf(DATA, "%.16e ", ml_xhat);
 							}
 							fprintf(DATA, "\n");
 
