@@ -457,7 +457,7 @@ void ml_bootstrap_particle_filter(HMM * hmm, int * sample_sizes, int * nxs, gsl_
 		
 		/* Level 0 likelihood */
 		/* ------------------ */
-		for (int i = 0; i < N0; i++)
+		for (int i = 0; i < N0; i++) /////////////
 			l0_g0s[i] = gsl_ran_gaussian_pdf(solns0[i] - obs, obs_sd);
 
 		// if (N1 > 0)
@@ -473,7 +473,7 @@ void ml_bootstrap_particle_filter(HMM * hmm, int * sample_sizes, int * nxs, gsl_
 
 		/* Level 0 weighting */
 		/* ----------------- */
-		for (int i = 0; i < N0; i++) {
+		for (int i = 0; i < N0; i++) { ////////////////
 			// weights[i] = gsl_ran_gaussian_pdf(solns0[i] - obs, obs_sd) / (double) N0;
 			// fprintf(LHOOD_OBS0, "%e %e\n", l0_sig_thetas[i], l0_g0s[i]);
 			weights[i] = l0_g0s[i] / (double) N0;
