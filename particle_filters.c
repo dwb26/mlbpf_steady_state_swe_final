@@ -328,8 +328,6 @@ void ml_bootstrap_particle_filter(HMM * hmm, int * sample_sizes, int * nxs, gsl_
 
 	/* Files */
 	/* ----- */
-	// FILE * X_HATS = fopen("ml_xhats.txt", "w");
-
 	// FILE * CORRECTIONS = fopen("corrections.txt", "w");
 	// FILE * REGRESSION_CURVE = fopen("regression_curve.txt", "w");
 	// FILE * TRUE_CURVE = fopen("true_curve.txt", "w");
@@ -501,16 +499,14 @@ void ml_bootstrap_particle_filter(HMM * hmm, int * sample_sizes, int * nxs, gsl_
 
 		}
 
-		x_hat = 0.0, sign_rat = 0.0;
+		sign_rat = 0.0;
 		for (int i = 0; i < N_tot; i++) {
 			weights[i] /= normaliser;
 			absolute_weights[i] /= abs_normaliser;
 			ml_weighted[n][i].x = sig_thetas[i];
 			ml_weighted[n][i].w = weights[i];
-			// x_hat += sig_thetas[i] * weights[i];
 		}
-		// fprintf(X_HATS, "%e ", x_hat);
-
+	
 
 
 		/* --------------------------------------------------------------------------------------------------------- */
@@ -530,8 +526,6 @@ void ml_bootstrap_particle_filter(HMM * hmm, int * sample_sizes, int * nxs, gsl_
 		mutate(rng, N_tot, thetas, res_thetas, sig_sd);
 
 	}
-
-	// fclose(X_HATS);
 
 	// fclose(CORRECTIONS);
 	// fclose(REGRESSION_CURVE);
@@ -622,7 +616,6 @@ void bootstrap_particle_filter(HMM * hmm, int N, gsl_rng * rng, w_double ** weig
 	for (int i = 0; i < N; i++)
 		thetas[i] = theta_init + gsl_ran_gaussian(rng, sig_sd);
 
-	// FILE * X_HATS = fopen("x_hats.txt", "w");
 	// FILE * BPF_PRIOR = fopen("bpf_prior.txt", "w");
 	// FILE * BPF_LHOODS = fopen("bpf_lhoods.txt", "w");
 	// FILE * BPF_POSTERIOR = fopen("bpf_posterior.txt", "w");
@@ -669,12 +662,10 @@ void bootstrap_particle_filter(HMM * hmm, int N, gsl_rng * rng, w_double ** weig
 		/* Normalisation 																							 																						   */
 		/*																											 																										 */
 		/* --------------------------------------------------------------------------------------------------------- */
-		x_hat = 0.0;
 		for (int i = 0; i < N; i++) {
 			weights[i] /= normaliser;
 			weighted[n][i].x = sig_thetas[i];
 			weighted[n][i].w = weights[i];
-			// x_hat += sig_thetas[i] * weights[i];
 		}
 		// printf("BPF XHAT[%d] = %lf\n", n, x_hat);
 		// fprintf(X_HATS, "%e ", x_hat);
@@ -703,7 +694,6 @@ void bootstrap_particle_filter(HMM * hmm, int N, gsl_rng * rng, w_double ** weig
 
 	}
 
-	// fclose(X_HATS);
 	// fclose(BPF_PRIOR);
 	// fclose(BPF_LHOODS);
 	// fclose(BPF_POSTERIOR);
@@ -759,7 +749,6 @@ void bootstrap_particle_filter_var_nx(HMM * hmm, int N, gsl_rng * rng, w_double 
 	for (int i = 0; i < N; i++)
 		thetas[i] = theta_init + gsl_ran_gaussian(rng, sig_sd);
 
-	// FILE * X_HATS = fopen("x_hats.txt", "w");
 	// FILE * BPF_PRIOR = fopen("bpf_prior.txt", "w");
 	// FILE * BPF_LHOODS = fopen("bpf_lhoods.txt", "w");
 	// FILE * BPF_POSTERIOR = fopen("bpf_posterior.txt", "w");
@@ -807,12 +796,10 @@ void bootstrap_particle_filter_var_nx(HMM * hmm, int N, gsl_rng * rng, w_double 
 		/* Normalisation 																							 																						   */
 		/*																											 																										 */
 		/* --------------------------------------------------------------------------------------------------------- */
-		x_hat = 0.0;
 		for (int i = 0; i < N; i++) {
 			weights[i] /= normaliser;
 			weighted[n][i].x = sig_thetas[i];
 			weighted[n][i].w = weights[i];
-			// x_hat += sig_thetas[i] * weights[i];
 		}
 		// fprintf(X_HATS, "%e ", x_hat);
 		// for (int i = 0; i < N; i++)
@@ -840,7 +827,6 @@ void bootstrap_particle_filter_var_nx(HMM * hmm, int N, gsl_rng * rng, w_double 
 
 	}
 
-	// fclose(X_HATS);
 	// fclose(BPF_PRIOR);
 	// fclose(BPF_LHOODS);
 	// fclose(BPF_POSTERIOR);
@@ -899,7 +885,6 @@ void ref_bootstrap_particle_filter(HMM * hmm, int N, gsl_rng * rng, w_double ** 
 	FILE * BPF_PARTICLES = fopen("bpf_particles.txt", "w");
 	FILE * REF_PARTICLES = fopen("ref_particles.txt", "w");
 	FILE * NORMALISERS = fopen("normalisers.txt", "w");
-	// FILE * X_HATS = fopen("x_hats.txt", "w");
 	fprintf(BPF_PARTICLES, "%d %d\n", length, N);
 
 
@@ -938,14 +923,11 @@ void ref_bootstrap_particle_filter(HMM * hmm, int N, gsl_rng * rng, w_double ** 
 		/* Normalisation 																							 																							 */
 		/*																											 																										 */
 		/* --------------------------------------------------------------------------------------------------------- */
-		x_hat = 0.0;
 		for (int i = 0; i < N; i++) {
 			weights[i] /= normaliser;
 			weighted[n][i].x = sig_thetas[i];
 			weighted[n][i].w = weights[i];
-			// x_hat += sig_thetas[i] * weights[i];
 		}
-		// fprintf(X_HATS, "%e ", x_hat);
 
 
 
@@ -969,7 +951,6 @@ void ref_bootstrap_particle_filter(HMM * hmm, int N, gsl_rng * rng, w_double ** 
 
 	fclose(BPF_PARTICLES);
 	fclose(REF_PARTICLES);
-	// fclose(X_HATS);
 	fclose(NORMALISERS);
 
 	free(ind);

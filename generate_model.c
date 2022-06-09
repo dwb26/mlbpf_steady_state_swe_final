@@ -30,12 +30,6 @@ double equal_runtimes_model(gsl_rng * rng, HMM * hmm, int ** N0s, int * N1s, w_d
 		run_reference_filter(rng, hmm, N_ref, weighted_ref, n_data);
 		rng_counter++;
 		gsl_rng_set(rng, rng_counter);
-
-		for (int n = 0; n < 3; n++) {
-			for (int i = 0; i < 25; i++)
-				printf("(w, x)[%d, %d] = %e, %e\n", n, i, weighted_ref[n][i].w, weighted_ref[n][i].x);
-		}
-		printf("\n");
 	}
 	else
 		read_cdf(weighted_ref, hmm, n_data);
@@ -85,46 +79,29 @@ void generate_hmm(gsl_rng * rng, HMM * hmm, int n_data, int length, int nx) {
 	theta = sigmoid_inv(sig_theta, upper_bound, lower_bound);
 
 	/* Write the available parameters */
-	FILE * DATA_OUT = fopen("hmm_data.txt", "w");
+	char n_data_str[50], hmm_file_name[200];
+	snprintf(n_data_str, 50, "%d", n_data);
+	sprintf(hmm_file_name, "hmm_data_n_data=%s.txt", n_data_str);
+	FILE * DATA_OUT = fopen(hmm_file_name, "w");
 	FILE * CURVE_DATA = fopen("curve_data.txt", "w");
 	FILE * TOP_DATA = fopen("top_data.txt", "w");
-	fprintf(DATA_OUT, "%d\n", length);
-	fprintf(DATA_OUT, "%lf %lf\n", sig_sd, obs_sd);
-	fprintf(DATA_OUT, "%lf %lf\n", space_left, space_right);
-	fprintf(DATA_OUT, "%d\n", nx);
-	fprintf(DATA_OUT, "%lf\n", k);
-	fprintf(DATA_OUT, "%lf %lf\n", h_init, q0);
-	fprintf(DATA_OUT, "%lf %lf\n", lower_bound, upper_bound);
-
-	int N = 1000;
-	double EY, varY, top_varY = 0.0;
-	double * thetas = (double *) malloc(N * sizeof(double));
-	double * solns = (double *) malloc(N * sizeof(double));
-	double lmbda = 1.0 * M_PI;
+	output_hmm_parameters(DATA_OUT, length, sig_sd, obs_sd, space_left, space_right, nx, k, h_init, q0, lower_bound, upper_bound);
 
 	/* Generate the data */
 	for (int n = 0; n < length; n++) {
 
+		/* Generate the artificial HMM data points */
 		sig_theta = sigmoid(theta, upper_bound, lower_bound);
 		gamma_theta = gamma_of_k * pow(sig_theta, k);
 		solve(k, sig_theta, nx, xs, Z_x, h, dx, q0_sq, gamma_theta);
 		obs = h[obs_pos] + gsl_ran_gaussian(rng, obs_sd);
 		fprintf(DATA_OUT, "%e %e\n", sig_theta, obs);
-
-		double true_soln = h[obs_pos];
-		gen_Z_topography(xs, Z, nx, k, sig_theta);
-		for (int j = 0; j < nx; j++) {
-			fprintf(CURVE_DATA, "%e ", h[j]);
-			fprintf(TOP_DATA, "%e ", Z[j]);
-		}
-		fprintf(CURVE_DATA, "\n");
-		fprintf(TOP_DATA, "\n");
+		output_curve_solution(xs, Z, nx, k, sig_theta, h, CURVE_DATA, TOP_DATA);
 
 		/* Evolve the signal with the mutation model */
 		theta = 0.9999 * theta + gsl_ran_gaussian(rng, sig_sd);
 
 	}
-	printf("Average observation stds = %lf\n", top_varY / (double) length);
 
 	fclose(DATA_OUT);
 	fclose(CURVE_DATA);	
@@ -134,11 +111,41 @@ void generate_hmm(gsl_rng * rng, HMM * hmm, int n_data, int length, int nx) {
 	free(Z);
 	free(Z_x);
 	free(xs);
-	free(thetas);
-	free(solns);
 
-	/* Read in the data from the file */
-	FILE * DATA_IN = fopen("hmm_data.txt", "r");
+	read_hmm_data(hmm_file_name, hmm, n_data);
+
+}
+
+
+void output_hmm_parameters(FILE * DATA_OUT, int length, double sig_sd, double obs_sd, double space_left, double space_right, int nx, double k, double h_init, double q0, double lower_bound, double upper_bound) {
+
+	fprintf(DATA_OUT, "%d\n", length);
+	fprintf(DATA_OUT, "%lf %lf\n", sig_sd, obs_sd);
+	fprintf(DATA_OUT, "%lf %lf\n", space_left, space_right);
+	fprintf(DATA_OUT, "%d\n", nx);
+	fprintf(DATA_OUT, "%lf\n", k);
+	fprintf(DATA_OUT, "%lf %lf\n", h_init, q0);
+	fprintf(DATA_OUT, "%lf %lf\n", lower_bound, upper_bound);
+
+}
+
+
+void output_curve_solution(double * xs, double * Z, int nx, double k, double sig_theta, double * h, FILE * CURVE_DATA, FILE * TOP_DATA) {
+
+	gen_Z_topography(xs, Z, nx, k, sig_theta);
+	for (int j = 0; j < nx; j++) {
+		fprintf(CURVE_DATA, "%e ", h[j]);
+		fprintf(TOP_DATA, "%e ", Z[j]);
+	}
+	fprintf(CURVE_DATA, "\n");
+	fprintf(TOP_DATA, "\n");
+
+}
+
+
+void read_hmm_data(char hmm_file_name[200], HMM * hmm, int n_data) {
+
+	FILE * DATA_IN = fopen(hmm_file_name, "r");
 	fscanf(DATA_IN, "%d\n", &hmm->length);
 	fscanf(DATA_IN, "%lf %lf\n", &hmm->sig_sd, &hmm->obs_sd);
 	fscanf(DATA_IN, "%lf %lf\n", &hmm->space_left, &hmm->space_right);
@@ -230,11 +237,6 @@ void read_cdf(w_double ** w_particles, HMM * hmm, int n_data) {
 			fscanf(data, "%le ", &w_particles[n][i].w);
 	}
 	fclose(data);
-	for (int n = 0; n < 3; n++) {
-		for (int i = 0; i < 25; i++)
-			printf("(w, x)[%d, %d] = %e, %e\n", n, i, w_particles[n][i].w, w_particles[n][i].x);
-	}
-	printf("\n");
 }
 
 
@@ -656,10 +658,6 @@ double compute_mse(w_double ** weighted1, w_double ** weighted2, int length, int
 
 void compute_nth_percentile(w_double ** distr, int N, double centile, int length, double * centiles) {
 
-	/* We first need to ascending sort the distribution by particle value */
-	// for (int n = 0; n < length; n++)
-		// quicksort(distr[n], 0, N - 1);
-
 	/* Now we can find the desired percentile */
 	int i;
 	double x_centile, cum_prob;
@@ -676,14 +674,13 @@ void compute_nth_percentile(w_double ** distr, int N, double centile, int length
 }
 
 
-		// double true_soln = h[obs_pos];
-		// gen_Z_topography(xs, Z, nx, k, sig_theta);
-		// for (int j = 0; j < nx; j++) {
-		// 	fprintf(CURVE_DATA, "%e ", h[j]);
-		// 	fprintf(TOP_DATA, "%e ", Z[j]);
-		// }
-		// fprintf(CURVE_DATA, "\n");
-		// fprintf(TOP_DATA, "\n");
+
+	// int N = 1000;
+	// double EY, varY, top_varY = 0.0;
+	// double * thetas = (double *) malloc(N * sizeof(double));
+	// double * solns = (double *) malloc(N * sizeof(double));
+	// double lmbda = 1.0 * M_PI;
+
 
 		// EY = 0.0, varY = 0.0;
 		// for (int i = 0; i < N; i++) {
@@ -699,67 +696,6 @@ void compute_nth_percentile(w_double ** distr, int N, double centile, int length
 		// varY = sqrt(varY / (double) (N - 1));
 		// top_varY += varY;
 		// printf("(signal, true obs, sample_mean, sample_obs_sd) = (%lf, %lf, %lf, %lf)\n", theta, true_soln, EY, varY);
-
-
-// double partition(w_double * distr, int lo, int hi) {
-
-// 	/** 
-// 	 * Divides array into two partitions
-// 	 * */
-// 	double pivot = distr[hi].x;	// Choose the last element as the pivot
-// 	double x_temp, w_temp;
-
-// 	// Temporary pivot index
-// 	int i = lo - 1;
-
-// 	for (int j = lo; j < hi; j++) {
-// 		// If the current element is less than or equal to the pivot
-// 		if (distr[j].x <= pivot) {
-// 			// Move the temporary pivot index forward
-// 			i++;
-
-// 			// Swap the current element with the element at the temporary pivot index
-// 			x_temp = distr[i].x, w_temp = distr[i].w;
-// 			distr[i].x = distr[j].x, distr[i].w = distr[j].w;
-// 			distr[j].x = x_temp, distr[j].w = w_temp;
-// 		}
-// 	}
-// 	// Move the pivot element to the correct pivot position (between the smaller and larger elements)
-// 	i++;
-// 	x_temp = distr[i].x, w_temp = distr[i].w;
-// 	distr[i].x = distr[hi].x, distr[i].w = distr[hi].w;
-// 	distr[hi].x = x_temp, distr[hi].w = w_temp;
-
-// 	return i; // the pivot index
-// }
-
-
-// int quicksort(w_double * distr, int lo, int hi) {
-
-// 	/**
-// 	 * Sorts a (portion of an) array, divides it into portions, then sorts those
-// 	*/
-
-// 	// Ensure indices are in correct order
-// 	if (lo >= hi || lo < 0)
-// 		return 0;
-
-// 	else {
-
-// 		// Partition the array and get the pivot index
-// 		double p = partition(distr, lo, hi);
-
-// 		// Sort the two partitions
-// 		quicksort(distr, lo, p - 1); // Left side of pivot
-// 		quicksort(distr, p + 1, hi); // Right side of pivot
-
-// 		return 1;
-// 	}
-
-// }
-
-
-
 
 
 
