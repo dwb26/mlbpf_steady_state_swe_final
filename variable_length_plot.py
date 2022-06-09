@@ -124,8 +124,8 @@ for n in range(length):
 glob_min = np.min((np.min(min_mean_ml_rmse), np.min(var_mean_bpf_rmse)))
 glob_max = np.max((np.max(max_mean_ml_rmse), np.max(var_mean_bpf_rmse)))
 glob_min = glob_min - 0.15 * np.abs(glob_min); glob_max = glob_max + 0.15 * np.abs(glob_max)
-# print(var_mean_bpf_rmse)
-# print(min_mean_ml_rmse)
+print(var_mean_bpf_rmse)
+print(min_mean_ml_rmse)
 
 
 
@@ -186,16 +186,16 @@ colors = ["orchid", "mediumpurple", "royalblue", "powderblue", "mediumseagreen",
 
 # These are the mean drift plots #
 # ------------------------------ #
-fig4, ax4 = plt.subplots(nrows=1, ncols=1, figsize=(10, 7))
-ax4.plot(range(length), mean_ref_xhats, label="ref xhats", color="black")
-for i_mesh in range(N_MESHES):
-	ax4.plot(range(length), N1_0_mean_ml_xhats[i_mesh], label=level0s[i_mesh], marker="o", markersize=3)
-ax4.set_title(r"Drift of ML xhats for $N_1=0$")
-ax4.set_xlabel("n")
-ax4.legend()
-plt.savefig("drift_plots.png")
+# fig4, ax4 = plt.subplots(nrows=1, ncols=1, figsize=(10, 7))
+# ax4.plot(range(length), mean_ref_xhats, label="ref xhats", color="black")
+# for i_mesh in range(N_MESHES):
+# 	ax4.plot(range(length), N1_0_mean_ml_xhats[i_mesh], label=level0s[i_mesh], marker="o", markersize=3)
+# ax4.set_title(r"Drift of ML xhats for $N_1=0$")
+# ax4.set_xlabel("n")
+# ax4.legend()
+# plt.savefig("drift_plots.png")
 
-plt.show()
+
 
 
 
@@ -209,10 +209,14 @@ plt.show()
 
 # This is the final iterate RMSE plot #
 # ----------------------------------- #
-# fig1, ax1 = plt.subplots(nrows=1, ncols=1, figsize=(10, 7))
-# ax1.plot(N1s[:max_allocs], mean_bpf_rmse * np.ones(max_allocs), color="black", label="BPF")
-# for i_mesh in range(N_MESHES):
-# 	ax1.plot(N1s[:alloc_counters[i_mesh]], mean_ml_rmse[i_mesh, :alloc_counters[i_mesh]], label=level0s[i_mesh], marker="o", markersize=3)
-# 	print(mean_ml_rmse[i_mesh, :alloc_counters[i_mesh]])
-# ax1.set_title("Mean log10(RMSE) at n = {}".format(custm_length - 1))
-# ax1.legend()
+fig1, ax1 = plt.subplots(nrows=1, ncols=1, figsize=(10, 7))
+ax1.plot(N1s[:max_allocs], mean_bpf_rmse * np.ones(max_allocs), color="black", label="BPF")
+for i_mesh in range(N_MESHES):
+	ax1.plot(N1s[:alloc_counters[i_mesh]], mean_ml_rmse[i_mesh, :alloc_counters[i_mesh]], label=level0s[i_mesh], marker="o", markersize=3)
+	print(mean_ml_rmse[i_mesh, :alloc_counters[i_mesh]])
+ax1.set_title("Mean log10(RMSE) at n = {}".format(custm_length - 1))
+ax1.legend()
+
+plt.show()
+
+
