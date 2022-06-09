@@ -18,7 +18,7 @@
 
 // This is the 1d steady state shallow water equations model
 
-double equal_runtimes_model(gsl_rng * rng, HMM * hmm, int ** N0s, int * N1s, w_double ** weighted_ref, int N_ref, int N_trials, int N_bpf, int * level0_meshes, int n_data, FILE * RAW_BPF_TIMES, FILE * RAW_BPF_KS, FILE * RAW_BPF_MSE, w_double ** ml_weighted, FILE * BPF_CENTILE_MSE, FILE * REF_XHATS, FILE * BPF_XHATS, double * ref_xhats, double * bpf_rmses, int rng_counter) {
+double equal_runtimes_model(gsl_rng * rng, HMM * hmm, int ** N0s, int * N1s, w_double ** weighted_ref, int N_ref, int N_trials, int N_bpf, int * level0_meshes, int n_data, FILE * RAW_BPF_TIMES, FILE * RAW_BPF_KS, FILE * RAW_BPF_MSE, w_double ** ml_weighted, FILE * BPF_CENTILE_MSE, FILE * REF_XHATS, FILE * BPF_XHATS, int rng_counter) {
 
 	// int run_ref = 1;		// REF ON
 	int run_ref = 0;		// REF OFF
@@ -45,7 +45,7 @@ double equal_runtimes_model(gsl_rng * rng, HMM * hmm, int ** N0s, int * N1s, w_d
 	/* ----------------- */
 	/* Run the BPF with a set number of particles N_bpf < N_ref and record the accuracy and the mean time taken. Then for each mesh configuration, increment the level 1 particle allocation and compute the level 0 particle allocation so that the time taken for the MLBPF is roughly the same as the BPF */
 	double T, T_temp;
-	T = perform_BPF_trials(hmm, N_bpf, rng, N_trials, N_ref, weighted_ref, n_data, RAW_BPF_TIMES, RAW_BPF_KS, RAW_BPF_MSE, BPF_CENTILE_MSE, REF_XHATS, BPF_XHATS, ref_xhats, bpf_rmses, rng_counter);
+	T = perform_BPF_trials(hmm, N_bpf, rng, N_trials, N_ref, weighted_ref, n_data, RAW_BPF_TIMES, RAW_BPF_KS, RAW_BPF_MSE, BPF_CENTILE_MSE, REF_XHATS, BPF_XHATS, rng_counter);
 	// if (n_data == 0)
 		// compute_sample_sizes(hmm, rng, level0_meshes, T, N0s, N1s, N_bpf, N_trials, ml_weighted);
 	T_temp = read_sample_sizes(hmm, N0s, N1s, N_trials);
@@ -238,10 +238,10 @@ void read_cdf(w_double ** w_particles, HMM * hmm, int n_data) {
 }
 
 
-double perform_BPF_trials(HMM * hmm, int N_bpf, gsl_rng * rng, int N_trials, int N_ref, w_double ** weighted_ref, int n_data, FILE * RAW_BPF_TIMES, FILE * RAW_BPF_KS, FILE * RAW_BPF_MSE, FILE * BPF_CENTILE_MSE, FILE * REF_XHATS, FILE * BPF_XHATS, double * ref_xhats, double * bpf_rmses, int rng_counter) {
+double perform_BPF_trials(HMM * hmm, int N_bpf, gsl_rng * rng, int N_trials, int N_ref, w_double ** weighted_ref, int n_data, FILE * RAW_BPF_TIMES, FILE * RAW_BPF_KS, FILE * RAW_BPF_MSE, FILE * BPF_CENTILE_MSE, FILE * REF_XHATS, FILE * BPF_XHATS, int rng_counter) {
 
 	int length = hmm->length;
-	double ks = 0.0, elapsed = 0.0, mse = 0.0, mean_elapsed = 0.0, q_mse = 0.0, bpf_xhat = 0.0, centile = 0.95;
+	double ks, elapsed = 0.0, mse, mean_elapsed = 0.0, q_mse = 0.0, ref_xhat = 0.0, bpf_xhat = 0.0, centile = 0.95;
 	double * ref_centiles = (double *) malloc(length * sizeof(double));
 	compute_nth_percentile(weighted_ref, N_ref, centile, length, ref_centiles);
 	double * bpf_centiles = (double *) malloc(length * sizeof(double));
@@ -251,9 +251,10 @@ double perform_BPF_trials(HMM * hmm, int N_bpf, gsl_rng * rng, int N_trials, int
 
 	/* Write out the current data set reference x_hats */
 	for (int n = 0; n < length; n++) {
+		ref_xhat = 0.0;
 		for (int i = 0; i < N_ref; i++)
-			ref_xhats[n] += weighted_ref[n][i].w * weighted_ref[n][i].x;
-		fprintf(REF_XHATS, "%.16e ", ref_xhats[n]);
+			ref_xhat += weighted_ref[n][i].w * weighted_ref[n][i].x;
+		fprintf(REF_XHATS, "%.16e ", ref_xhat);
 	}
 	fprintf(REF_XHATS, "\n");
 
@@ -267,7 +268,7 @@ double perform_BPF_trials(HMM * hmm, int N_bpf, gsl_rng * rng, int N_trials, int
 		mean_elapsed += elapsed;
 		rng_counter++;
 		gsl_rng_set(rng, rng_counter);
-		
+
 
 		/* Trial analysis */
 		/* -------------- */
@@ -295,9 +296,6 @@ double perform_BPF_trials(HMM * hmm, int N_bpf, gsl_rng * rng, int N_trials, int
 		fprintf(RAW_BPF_TIMES, "%.16e ", elapsed);
 		fprintf(RAW_BPF_KS, "%.16e ", ks);
 		fprintf(RAW_BPF_MSE, "%.16e ", mse);
-
-		for (int n = 0; n < length; n++) /////
-			bpf_rmses[n] += log10(sqrt(compute_mse(weighted_ref, weighted, n + 1, N_ref, N_bpf))) / (double) N_trials;
 
 	}
 
