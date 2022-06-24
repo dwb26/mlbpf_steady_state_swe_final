@@ -4,7 +4,7 @@ from scipy import stats
 import pandas as pd
 import seaborn as sns
 
-hmm_data = open("hmm_data.txt", "r")
+hmm_data = open("hmm_data_n_data=0.txt", "r")
 ml_parameters = open("ml_parameters.txt", "r")
 raw_bpf_times = open("raw_bpf_times.txt", "r")
 raw_bpf_mse = open("raw_bpf_mse.txt", "r")

@@ -45,21 +45,24 @@ int main(void) {
 
 	/* Main experiment parameters */
 	/* -------------------------- */
-	int N_data = 3;
+	int N_data = 1;
 	int N_trials = 10;
-	int length = 5, nx = 500;
+	int length = 50, nx = 500;
 	int N_ref = 500000;
-	int N_bpf = 1000;
-	// int N_bpf = 5000;
+	// int N_ref = 50000;
+	// int N_bpf = 1000;
+	int N_bpf = 5000;
 	// int N_bpf = 10000;
 	// int N_bpf = 15000;
-	// int level0_meshes[N_MESHES] = { 750, 500, 250, 200, 150, 100, 50 };
 	int level0_meshes[N_MESHES] = { 350, 250, 200, 150, 125, 100, 75 };
+	// int level0_meshes[N_MESHES] = { 350, 125, 75 };
 	// int level0_meshes[N_MESHES] = { 650, 450, 250, 125, 75 };
 	// int N1s[N_ALLOCS] = { 0, 75, 125, 250, 300, 400, 450 };
-	int N1s[N_ALLOCS] = { 0, 50, 125, 250, 500, 750, 900 };
+	// int N1s[N_ALLOCS] = { 0, 50, 125, 250, 500, 750, 900 };
 	// int N1s[N_ALLOCS] = { 0, 125, 250, 500, 1000, 1500, 2000 };
-	// int N1s[N_ALLOCS] = { 0, 100, 250, 500, 1000, 2000, 4000 };
+	int N1s[N_ALLOCS] = { 0, 100, 250, 500, 1000, 2000, 4000 };
+	// int N1s[N_ALLOCS] = { 0, 100, 250, 500, 1000, 2000, 4000, 8000 };
+	// int N1s[N_ALLOCS] = { 0, 100, 1000, 4000 };
 	// int level0_meshes[N_MESHES] = { 100 };
 	// int N1s[N_ALLOCS] = { 0 };
 	int nxs[N_LEVELS] = { 0, nx };
@@ -188,7 +191,7 @@ int main(void) {
 							rng_counter++;
 							gsl_rng_set(rng, rng_counter);
 
-							ks = 0.0, sr = 0.0, q_mse = 0.0;
+							ks = 0.0, q_mse = 0.0;
 							compute_nth_percentile(ml_weighted, N_tot, centile, length, mlbpf_centiles);
 							for (int n = 0; n < length; n++) {
 								qsort(ml_weighted[n], N_tot, sizeof(w_double), weighted_double_cmp);

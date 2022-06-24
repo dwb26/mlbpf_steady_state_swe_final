@@ -283,8 +283,339 @@ void ml_bootstrap_particle_filter(HMM * hmm, int * sample_sizes, int * nxs, gsl_
 	double * absolute_weights = (double *) malloc(N_tot * sizeof(double));
 	double * solns1 = (double *) malloc(N1 * sizeof(double));
 	double * solns0 = (double *) malloc(N_tot * sizeof(double));
-	double * g0s = (double *) calloc(N1, sizeof(double));
 	double * g1s = (double *) calloc(N1, sizeof(double));
+	double * g0s = (double *) calloc(N1, sizeof(double));
+	double * corrections = (double *) malloc(N1 * sizeof(double));
+	double * poly_weights = (double *) malloc(M_poly * sizeof(double));
+	double * sig_theta_mesh = (double *) malloc(mesh_size * sizeof(double));
+
+
+	/* Solver arrays */
+	/* ------------- */
+	double * h1 = (double *) malloc(nx1 * sizeof(double));
+	double * Z_x1 = (double *) malloc(nx1 * sizeof(double));
+	double * xs1 = (double *) malloc(nx1 * sizeof(double));
+	double * h0 = (double *) malloc(nx0 * sizeof(double));
+	double * Z_x0 = (double *) malloc(nx0 * sizeof(double));
+	double * xs0 = (double *) malloc(nx0 * sizeof(double));
+	for (int j = 0; j < nx1; j++)
+		xs1[j] = space_left + j * dx1;
+	for (int j = 0; j < nx0; j++)
+		xs0[j] = space_left + j * dx0;
+
+
+	/* Regression matrices */
+	/* ------------------- */
+	double * PHI = (double *) malloc(N1 * M_poly * sizeof(double));
+	double * C = (double *) malloc(M_poly * M_poly * sizeof(double));
+	double * C_inv = (double *) malloc(M_poly * M_poly * sizeof(double));
+	double * MP = (double *) malloc(N1 * M_poly * sizeof(double));
+	gsl_matrix * C_gsl = gsl_matrix_alloc(M_poly, M_poly);
+	gsl_permutation * p = gsl_permutation_alloc(M_poly);
+	gsl_matrix * C_inv_gsl = gsl_matrix_alloc(M_poly, M_poly);
+
+
+	/* Initial conditions */
+	/* ------------------ */
+	double theta_init = sigmoid_inv(hmm->signal[0], upp_bd, low_bd);
+	double h_init = hmm->h_init, q_init = hmm->q0, q_init_sq = q_init * q_init;
+	h1[0] = h_init, h0[0] = h_init;
+	for (int i = 0; i < N_tot; i++) {
+		thetas[i] = theta_init + gsl_ran_gaussian(rng, sig_sd);
+		res_signs[i] = 1;
+	}	
+
+
+	/* Files */
+	/* ----- */
+	// FILE * CORRECTIONS = fopen("corrections.txt", "w");
+	// FILE * REGRESSION_CURVE = fopen("regression_curve.txt", "w");
+	// FILE * TRUE_CURVE = fopen("true_curve.txt", "w");
+	// FILE * TRUE_CURVE0 = fopen("true_curve0.txt", "w");
+	// FILE * LEVEL1_FINE_LHOODS = fopen("level1_fine_lhoods.txt", "w");
+	// FILE * LEVEL1_COARSE_LHOODS = fopen("level1_coarse_lhoods.txt", "w");
+	// FILE * LEVEL0_COARSE_LHOODS = fopen("level0_coarse_lhoods.txt", "w");
+	// FILE * ML_DISTR = fopen("ml_distr.txt", "w");
+	// FILE * SIGNS = fopen("signs.txt", "w");
+	// fprintf(REGRESSION_CURVE, "%d\n", mesh_size);
+	// fprintf(ML_DISTR, "%d %d %d\n", N0, N1, N_tot);
+	// fprintf(SIGNS, "%d %d %d\n", N0, N1, N_tot);
+	// FILE * LHOOD_OBS = fopen("lhood_obs.txt", "w");
+	// FILE * LHOOD_OBS0 = fopen("lhood_obs0.txt", "w");
+	int N_bins = (int) (N1 / 10.0);
+	double * bins = (double *) calloc(N_bins, sizeof(double));
+	double * l1_sig_thetas = (double *) malloc(N1 * sizeof(double));
+	double * l0_sig_thetas = (double *) malloc(N0 * sizeof(double));
+	double * l1_thetas = (double *) malloc(N1 * sizeof(double));
+	double * l0_thetas = (double *) malloc(N0 * sizeof(double));
+	double * l0_g0s = (double *) calloc(N_tot, sizeof(double));
+	double * edges = (double *) malloc((N_bins + 1) * sizeof(double));
+	double * sorted_thetas = (double *) malloc(N_tot * sizeof(double));
+
+
+
+	/* ---------------------------------------------- Time iterations ---------------------------------------------- */
+	/* ------------------------------------------------------------------------------------------------------------- */
+	for (int n = 0; n < length; n++) {
+
+		/* Read in the observation that the particles will be weighted on */
+		obs = hmm->observations[n];
+		normaliser = 0.0, abs_normaliser = 0.0;
+		for (int i = 0; i < N_tot; i++)
+			sig_thetas[i] = sigmoid(thetas[i], upp_bd, low_bd);
+
+
+
+		/* --------------------------------------------------------------------------------------------------------- */
+		/*																											 																										 */
+		/* Level 1 solutions																						 																					   */
+		/*																											 																										 */
+		/* --------------------------------------------------------------------------------------------------------- */
+		for (int i = N0; i < N_tot; i++) {
+
+			gamma_theta = gamma_of_k * pow(sig_thetas[i], k);
+
+			/* Fine solution */
+			solve(k, sig_thetas[i], nx1, xs1, Z_x1, h1, dx1, q_init_sq, gamma_theta);
+			solns1[i - N0] = h1[obs_pos1];
+
+			/* Coarse solution */
+			solve(k, sig_thetas[i], nx0, xs0, Z_x0, h0, dx0, q_init_sq, gamma_theta);
+			solns0[i] = h0[obs_pos0];
+
+			/* Record the corrections samples for the regression approximation to the true correction curve */
+			corrections[i - N0] = solns1[i - N0] - solns0[i];
+			// fprintf(CORRECTIONS, "%e %e\n", sig_thetas[i], corrections[i - N0]);
+
+		}
+
+
+
+		/* --------------------------------------------------------------------------------------------------------- */
+		/*																											 																										 */
+		/* Level 0 solutions																						 																						 */
+		/*																											 																										 */
+		/* --------------------------------------------------------------------------------------------------------- */
+		for (int i = 0; i < N0; i++) {
+
+			gamma_theta = gamma_of_k * pow(sig_thetas[i], k);
+			solve(k, sig_thetas[i], nx0, xs0, Z_x0, h0, dx0, q_init_sq, gamma_theta);
+			solns0[i] = h0[obs_pos0];
+
+		}
+
+
+
+		/* --------------------------------------------------------------------------------------------------------- */
+		/*																											 																										 */
+		/* Regresion corrections																			 																							 */
+		/*																											 																										 */
+		/* --------------------------------------------------------------------------------------------------------- */
+		if (N1 > 0) {
+			regression_fit(sig_thetas, corrections, N0, N1, M_poly, poly_weights, PHI, C, C_inv, MP, C_gsl, p, C_inv_gsl);
+			for (int i = 0; i < N_tot; i++)
+				solns0[i] += poly_eval(sig_thetas[i], poly_weights, poly_degree);
+
+			// generate_adaptive_artificial_mesh(N_tot, sig_thetas, mesh_size, sig_theta_mesh);
+			// for (int l = 0; l < mesh_size; l++) {
+
+				/* Output the regressed correction curve approximation over the artificial particle mesh */
+				// fprintf(REGRESSION_CURVE, "%e %e\n", sig_theta_mesh[l], poly_eval(sig_theta_mesh[l], poly_weights, poly_degree));
+
+				/* Output the true correction curve */
+			// 	gamma_theta = gamma_of_k * pow(sig_theta_mesh[l], k);
+			// 	solve(k, sig_theta_mesh[l], nx1, xs1, Z_x1, h1, dx1, q_init_sq, gamma_theta);
+			// 	g1 = h1[obs_pos1];
+			// 	solve(k, sig_theta_mesh[l], nx0, xs0, Z_x0, h0, dx0, q_init_sq, gamma_theta);
+			// 	g0 = h0[obs_pos0];
+			// 	g0 += poly_eval(sig_theta_mesh[l], poly_weights, poly_degree);
+			// 	// fprintf(TRUE_CURVE, "%e ", g1 - g0);
+			// 	fprintf(TRUE_CURVE, "%e ", g1);
+			// 	fprintf(TRUE_CURVE0, "%e ", g0);
+			// }
+			// fprintf(TRUE_CURVE, "\n");
+			// fprintf(TRUE_CURVE0, "\n");
+
+		}
+
+
+
+		/* --------------------------------------------------------------------------------------------------------- */
+		/*																											 																										 */
+		/* Weight assignment																						 																						 */
+		/*																											 																										 */
+		/* --------------------------------------------------------------------------------------------------------- */		
+
+		/* Level 1 likelihood */
+		/* ------------------ */
+		for (int i = N0; i < N_tot; i++) {
+
+			g1s[i - N0] = gsl_ran_gaussian_pdf(solns1[i - N0] - obs, obs_sd);
+			g0s[i - N0] = gsl_ran_gaussian_pdf(solns0[i] - obs, obs_sd);
+
+		}
+		
+		/* Level 0 likelihood */
+		/* ------------------ */
+		for (int i = 0; i < N0; i++) /////////////
+			l0_g0s[i] = gsl_ran_gaussian_pdf(solns0[i] - obs, obs_sd);
+
+		// if (N1 > 0)
+			// lhood_scale(l0_sig_thetas, l1_sig_thetas, l0_g0s, g0s, g1s, edges, bins, N_bins, N1);
+
+
+		/* Level 1 weighting */
+		/* ----------------- */
+		for (int i = N0; i < N_tot; i++) {
+			// fprintf(LHOOD_OBS, "%e %e %e\n", l1_sig_thetas[i - N0], g1s[i - N0], g0s[i - N0]);
+			weights[i] = (g1s[i - N0] - g0s[i - N0]) / (double) N1;
+		}
+
+		/* Level 0 weighting */
+		/* ----------------- */
+		for (int i = 0; i < N0; i++) { ////////////////
+			// weights[i] = gsl_ran_gaussian_pdf(solns0[i] - obs, obs_sd) / (double) N0;
+			// fprintf(LHOOD_OBS0, "%e %e\n", l0_sig_thetas[i], l0_g0s[i]);
+			weights[i] = l0_g0s[i] / (double) N0;
+		}
+
+
+
+		/* --------------------------------------------------------------------------------------------------------- */
+		/*																											 																										 */
+		/* Weight normalisation																				 																						 	 */
+		/*																											 																										 */
+		/* --------------------------------------------------------------------------------------------------------- */
+		for (int i = 0; i < N_tot; i++) {
+
+			/* Scale the weights by the previous sign and compute the new sign */
+			weights[i] *= res_signs[i];
+			signs[i] = weights[i] < 0 ? -1 : 1;
+			absolute_weights[i] = fabs(weights[i]);
+			
+			/* Compute the normalisation terms */
+			normaliser += weights[i];
+			abs_normaliser += absolute_weights[i];
+
+		}
+
+		sign_rat = 0.0;
+		for (int i = 0; i < N_tot; i++) {
+			weights[i] /= normaliser;
+			absolute_weights[i] /= abs_normaliser;
+			ml_weighted[n][i].x = sig_thetas[i];
+			ml_weighted[n][i].w = weights[i];
+		}
+	
+
+
+		/* --------------------------------------------------------------------------------------------------------- */
+		/*																											 																										 */
+		/* Resample and mutate 																						 																					 */
+		/*																											 																										 */
+		/* --------------------------------------------------------------------------------------------------------- */
+		resample(N_tot, absolute_weights, ind, rng);
+		random_permuter(permutation, N_tot, rng);
+		for (int i = 0; i < N_tot; i++) {
+			res_thetas[permutation[i]] = thetas[ind[i]];
+			res_signs[permutation[i]] = signs[ind[i]];
+		}
+		// for (int i = 0; i < N_tot; i++)
+			// fprintf(ML_DISTR, "%e ", res_thetas[i]);
+		// fprintf(ML_DISTR, "\n");
+		mutate(rng, N_tot, thetas, res_thetas, sig_sd);
+
+	}
+
+	// fclose(CORRECTIONS);
+	// fclose(REGRESSION_CURVE);
+	// fclose(TRUE_CURVE);
+	// fclose(TRUE_CURVE0);
+	// fclose(LEVEL1_FINE_LHOODS);
+	// fclose(LEVEL1_COARSE_LHOODS);
+	// fclose(LEVEL0_COARSE_LHOODS);
+	// fclose(ML_DISTR);
+	// fclose(SIGNS);
+	// fclose(LHOOD_OBS);
+	// fclose(LHOOD_OBS0);
+
+	free(signs);
+	free(res_signs);
+	free(ind);
+	free(permutation);
+	free(thetas);
+	free(sig_thetas);
+	free(res_thetas);
+	free(weights);
+	free(absolute_weights);
+	free(solns1);
+	free(solns0);
+	free(g0s);
+	free(g1s);
+	free(corrections);
+	free(poly_weights);
+	free(h1);
+	free(Z_x1);
+	free(xs1);
+	free(h0);
+	free(Z_x0);
+	free(xs0);
+	free(PHI);
+	free(C);
+	free(C_inv);
+	free(MP);
+	free(sig_theta_mesh);
+	free(bins);
+	free(l1_sig_thetas);
+	free(l0_sig_thetas);
+	free(l1_thetas);
+	free(l0_thetas);
+	free(l0_g0s);
+	free(edges);
+	free(sorted_thetas);
+	gsl_matrix_free(C_gsl);
+	gsl_permutation_free(p);
+	gsl_matrix_free(C_inv_gsl);
+
+}
+
+
+void timed_ml_bootstrap_particle_filter(HMM * hmm, int * sample_sizes, int * nxs, gsl_rng * rng, w_double ** ml_weighted, double * sign_ratios) {
+
+	
+	/* --------------------------------------------------- Setup --------------------------------------------------- */
+	/* ------------------------------------------------------------------------------------------------------------- */
+
+	/* General parameters */
+	/* ------------------ */
+	int length = hmm->length;
+	length = 5;
+	int nx1 = hmm->nx;
+	int nx0 = nxs[0];
+	int obs_pos1 = nx1 - 1;
+	int obs_pos0 = nx0 - 1;
+	int N0 = sample_sizes[0], N1 = sample_sizes[1], N_tot = N0 + N1;
+	int poly_degree = 0, M_poly = poly_degree + 1, mesh_size = 1000;
+	double sig_sd = hmm->sig_sd, obs_sd = hmm->obs_sd;
+	double space_left = hmm->space_left, space_right = hmm->space_right, k = hmm->k;
+	double dx1 = (space_right - space_left) / (double) (nx1 - 1);
+	double dx0 = (space_right - space_left) / (double) (nx0 - 1);
+	double low_bd = hmm->low_bd, upp_bd = hmm->upp_bd;
+	double obs, normaliser, abs_normaliser, x_hat, g0, g1, sign_rat;
+	double Z_obs, gamma_of_k = tgamma(k), gamma_theta;
+	short * signs = (short *) malloc(N_tot * sizeof(short));
+	short * res_signs = (short *) malloc(N_tot * sizeof(short));
+	long * ind = (long *) malloc(N_tot * sizeof(long));
+	int * permutation = (int *) malloc(N_tot * sizeof(int));
+	double * thetas = (double *) calloc(N_tot, sizeof(double));
+	double * sig_thetas = (double *) calloc(N_tot, sizeof(double));
+	double * res_thetas = (double *) malloc(N_tot * sizeof(double));
+	double * weights = (double *) calloc(N_tot, sizeof(double));
+	double * absolute_weights = (double *) malloc(N_tot * sizeof(double));
+	double * solns1 = (double *) malloc(N1 * sizeof(double));
+	double * solns0 = (double *) malloc(N_tot * sizeof(double));
+	double * g1s = (double *) calloc(N1, sizeof(double));
+	double * g0s = (double *) calloc(N1, sizeof(double));
 	double * corrections = (double *) malloc(N1 * sizeof(double));
 	double * poly_weights = (double *) malloc(M_poly * sizeof(double));
 	double * sig_theta_mesh = (double *) malloc(mesh_size * sizeof(double));

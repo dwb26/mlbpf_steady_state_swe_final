@@ -20,8 +20,8 @@
 
 double equal_runtimes_model(gsl_rng * rng, HMM * hmm, int ** N0s, int * N1s, w_double ** weighted_ref, int N_ref, int N_trials, int N_bpf, int * level0_meshes, int n_data, FILE * RAW_BPF_TIMES, FILE * RAW_BPF_KS, FILE * RAW_BPF_MSE, w_double ** ml_weighted, FILE * BPF_CENTILE_MSE, FILE * REF_XHATS, FILE * BPF_XHATS, int rng_counter) {
 
-	// int run_ref = 1;		// REF ON
-	int run_ref = 0;		// REF OFF
+	int run_ref = 1;		// REF ON
+	// int run_ref = 0;		// REF OFF
 
 	/* Reference distribution */
 	/* ---------------------- */
@@ -40,8 +40,8 @@ double equal_runtimes_model(gsl_rng * rng, HMM * hmm, int ** N0s, int * N1s, w_d
 	/* Run the BPF with a set number of particles N_bpf < N_ref and record the accuracy and the mean time taken. Then for each mesh configuration, increment the level 1 particle allocation and compute the level 0 particle allocation so that the time taken for the MLBPF is roughly the same as the BPF */
 	double T, T_temp;
 	T = perform_BPF_trials(hmm, N_bpf, rng, N_trials, N_ref, weighted_ref, n_data, RAW_BPF_TIMES, RAW_BPF_KS, RAW_BPF_MSE, BPF_CENTILE_MSE, REF_XHATS, BPF_XHATS, rng_counter);
-	// if (n_data == 0)
-		// compute_sample_sizes(hmm, rng, level0_meshes, T, N0s, N1s, N_bpf, N_trials, ml_weighted);
+	if (n_data == 0)
+		compute_sample_sizes(hmm, rng, level0_meshes, T, N0s, N1s, N_bpf, N_trials, ml_weighted);
 	T_temp = read_sample_sizes(hmm, N0s, N1s, N_trials);
 
 	return T;
@@ -95,7 +95,7 @@ void generate_hmm(gsl_rng * rng, HMM * hmm, int n_data, int length, int nx) {
 		gamma_theta = gamma_of_k * pow(sig_theta, k);
 		solve(k, sig_theta, nx, xs, Z_x, h, dx, q0_sq, gamma_theta);
 		obs = h[obs_pos] + gsl_ran_gaussian(rng, obs_sd);
-		fprintf(DATA_OUT, "%e %e\n", sig_theta, obs);
+		fprintf(DATA_OUT, "%.16e %.16e\n", sig_theta, obs);
 		output_curve_solution(xs, Z, nx, k, sig_theta, h, CURVE_DATA, TOP_DATA);
 
 		/* Evolve the signal with the mutation model */
@@ -461,7 +461,7 @@ void compute_sample_sizes(HMM * hmm, gsl_rng * rng, int * level0_meshes, double 
 			else {
 
 				/* Halve the interval until a sufficiently accurate root is found */
-				while (fabs(diff) >= 0.1) {
+				while (fabs(diff) >= 0.05) {
 					if (diff > 0)
 						N0 = (int) (0.5 * (N0_lo + N0));
 					else {

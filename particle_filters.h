@@ -28,6 +28,7 @@ void ml_bootstrap_particle_filter_res(HMM * hmm, int * sample_sizes, int * nxs, 
 void ml_bootstrap_particle_filter(HMM * hmm, int * sample_sizes, int * nxs, gsl_rng * rng, w_double ** ml_weighted, double * sign_ratios);
 void ml_bootstrap_particle_filter_debug(HMM * hmm, int * sample_sizes, int * nxs, gsl_rng * rng, w_double ** ml_weighted, FILE * L2_ERR_DATA);
 void ml_bootstrap_particle_filter_timed(HMM * hmm, int * sample_sizes, int * nxs, gsl_rng * rng, w_double ** ml_weighted, double * sign_ratios);
+void timed_ml_bootstrap_particle_filter(HMM * hmm, int * sample_sizes, int * nxs, gsl_rng * rng, w_double ** ml_weighted, double * sign_ratios);
 double sigmoid(double x, double a, double b);
 double sigmoid_inv(double x, double a, double b);
 void mutate(gsl_rng * rng, int N_tot, double * thetas, double * res_thetas, double sig_sd);
