@@ -45,13 +45,14 @@ int main(void) {
 
 	/* Main experiment parameters */
 	/* -------------------------- */
-	int N_data = 1;
+	int N_data = 10;
 	int N_trials = 10;
-	int length = 50, nx = 500;
+	int length = 25, nx = 750;
 	int N_ref = 500000;
 	// int N_ref = 50000;
 	// int N_bpf = 1000;
-	int N_bpf = 5000;
+	int N_bpf = 2500;
+	// int N_bpf = 5000;
 	// int N_bpf = 10000;
 	// int N_bpf = 15000;
 	int level0_meshes[N_MESHES] = { 350, 250, 200, 150, 125, 100, 75 };
@@ -59,8 +60,8 @@ int main(void) {
 	// int level0_meshes[N_MESHES] = { 650, 450, 250, 125, 75 };
 	// int N1s[N_ALLOCS] = { 0, 75, 125, 250, 300, 400, 450 };
 	// int N1s[N_ALLOCS] = { 0, 50, 125, 250, 500, 750, 900 };
-	// int N1s[N_ALLOCS] = { 0, 125, 250, 500, 1000, 1500, 2000 };
-	int N1s[N_ALLOCS] = { 0, 100, 250, 500, 1000, 2000, 4000 };
+	int N1s[N_ALLOCS] = { 0, 125, 250, 500, 1000, 1500, 2000 };
+	// int N1s[N_ALLOCS] = { 0, 100, 250, 500, 1000, 2000, 4000 };
 	// int N1s[N_ALLOCS] = { 0, 100, 250, 500, 1000, 2000, 4000, 8000 };
 	// int N1s[N_ALLOCS] = { 0, 100, 1000, 4000 };
 	// int level0_meshes[N_MESHES] = { 100 };
@@ -229,7 +230,7 @@ int main(void) {
 	/* 																																																			 */
 	/* ----------------------------------------------------------------------------------------------------- */
 	////////// NOTE THIS DOES NOT HAVE NEW RNG
-	int N_nxs = 60, nx_incr = 5, N;
+	int N_nxs = 30, nx_incr = 10, N;
 	int * nx_bpfs = (int *) malloc(N_nxs * sizeof(int));
 	double T, T_bin;
 	for (int n = 1; n <= N_nxs; n++)
@@ -315,7 +316,7 @@ void record_reference_data(HMM * hmm, w_double ** weighted_ref, int N_ref, FILE 
 		fprintf(FULL_HMM_DATA, "%.16e %.16e\n", hmm->signal[n], hmm->observations[n]);
 			EX = 0.0, EX2 = 0.0;
 		for (int i = 0; i < N_ref; i++) {
-			fprintf(FULL_REF_DATA, "%.16e %.16e\n", weighted_ref[n][i].x, weighted_ref[n][i].w);
+			// fprintf(FULL_REF_DATA, "%.16e %.16e\n", weighted_ref[n][i].x, weighted_ref[n][i].w);
 			EX += weighted_ref[n][i].x * weighted_ref[n][i].w;
 			EX2 += weighted_ref[n][i].x * weighted_ref[n][i].x * weighted_ref[n][i].w;
 		}

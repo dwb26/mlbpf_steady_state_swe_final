@@ -264,7 +264,7 @@ void ml_bootstrap_particle_filter(HMM * hmm, int * sample_sizes, int * nxs, gsl_
 	int obs_pos1 = nx1 - 1;
 	int obs_pos0 = nx0 - 1;
 	int N0 = sample_sizes[0], N1 = sample_sizes[1], N_tot = N0 + N1;
-	int poly_degree = 0, M_poly = poly_degree + 1, mesh_size = 1000;
+	int poly_degree = 1, M_poly = poly_degree + 1, mesh_size = 1000;
 	double sig_sd = hmm->sig_sd, obs_sd = hmm->obs_sd;
 	double space_left = hmm->space_left, space_right = hmm->space_right, k = hmm->k;
 	double dx1 = (space_right - space_left) / (double) (nx1 - 1);
@@ -328,29 +328,23 @@ void ml_bootstrap_particle_filter(HMM * hmm, int * sample_sizes, int * nxs, gsl_
 
 	/* Files */
 	/* ----- */
-	// FILE * CORRECTIONS = fopen("corrections.txt", "w");
-	// FILE * REGRESSION_CURVE = fopen("regression_curve.txt", "w");
-	// FILE * TRUE_CURVE = fopen("true_curve.txt", "w");
-	// FILE * TRUE_CURVE0 = fopen("true_curve0.txt", "w");
-	// FILE * LEVEL1_FINE_LHOODS = fopen("level1_fine_lhoods.txt", "w");
-	// FILE * LEVEL1_COARSE_LHOODS = fopen("level1_coarse_lhoods.txt", "w");
-	// FILE * LEVEL0_COARSE_LHOODS = fopen("level0_coarse_lhoods.txt", "w");
+	FILE * CORRECTIONS = fopen("corrections.txt", "w");
+	FILE * REGRESSION_CURVE = fopen("regression_curve.txt", "w");
+	FILE * TRUE_CURVE = fopen("true_curve.txt", "w");
+	FILE * TRUE_CURVE0 = fopen("true_curve0.txt", "w");
 	// FILE * ML_DISTR = fopen("ml_distr.txt", "w");
-	// FILE * SIGNS = fopen("signs.txt", "w");
-	// fprintf(REGRESSION_CURVE, "%d\n", mesh_size);
+	fprintf(REGRESSION_CURVE, "%d\n", mesh_size);	
 	// fprintf(ML_DISTR, "%d %d %d\n", N0, N1, N_tot);
-	// fprintf(SIGNS, "%d %d %d\n", N0, N1, N_tot);
-	// FILE * LHOOD_OBS = fopen("lhood_obs.txt", "w");
-	// FILE * LHOOD_OBS0 = fopen("lhood_obs0.txt", "w");
-	int N_bins = (int) (N1 / 10.0);
-	double * bins = (double *) calloc(N_bins, sizeof(double));
-	double * l1_sig_thetas = (double *) malloc(N1 * sizeof(double));
-	double * l0_sig_thetas = (double *) malloc(N0 * sizeof(double));
-	double * l1_thetas = (double *) malloc(N1 * sizeof(double));
-	double * l0_thetas = (double *) malloc(N0 * sizeof(double));
+
+	// int N_bins = (int) (N1 / 10.0);
+	// double * bins = (double *) calloc(N_bins, sizeof(double));
+	// double * l1_sig_thetas = (double *) malloc(N1 * sizeof(double));
+	// double * l0_sig_thetas = (double *) malloc(N0 * sizeof(double));
+	// double * l1_thetas = (double *) malloc(N1 * sizeof(double));
+	// double * l0_thetas = (double *) malloc(N0 * sizeof(double));
 	double * l0_g0s = (double *) calloc(N_tot, sizeof(double));
-	double * edges = (double *) malloc((N_bins + 1) * sizeof(double));
-	double * sorted_thetas = (double *) malloc(N_tot * sizeof(double));
+	// double * edges = (double *) malloc((N_bins + 1) * sizeof(double));
+	// double * sorted_thetas = (double *) malloc(N_tot * sizeof(double));
 
 
 
@@ -527,17 +521,11 @@ void ml_bootstrap_particle_filter(HMM * hmm, int * sample_sizes, int * nxs, gsl_
 
 	}
 
-	// fclose(CORRECTIONS);
-	// fclose(REGRESSION_CURVE);
-	// fclose(TRUE_CURVE);
-	// fclose(TRUE_CURVE0);
-	// fclose(LEVEL1_FINE_LHOODS);
-	// fclose(LEVEL1_COARSE_LHOODS);
-	// fclose(LEVEL0_COARSE_LHOODS);
+	fclose(CORRECTIONS);
+	fclose(REGRESSION_CURVE);
+	fclose(TRUE_CURVE);
+	fclose(TRUE_CURVE0);
 	// fclose(ML_DISTR);
-	// fclose(SIGNS);
-	// fclose(LHOOD_OBS);
-	// fclose(LHOOD_OBS0);
 
 	free(signs);
 	free(res_signs);
@@ -565,17 +553,18 @@ void ml_bootstrap_particle_filter(HMM * hmm, int * sample_sizes, int * nxs, gsl_
 	free(C_inv);
 	free(MP);
 	free(sig_theta_mesh);
-	free(bins);
-	free(l1_sig_thetas);
-	free(l0_sig_thetas);
-	free(l1_thetas);
-	free(l0_thetas);
-	free(l0_g0s);
-	free(edges);
-	free(sorted_thetas);
 	gsl_matrix_free(C_gsl);
 	gsl_permutation_free(p);
 	gsl_matrix_free(C_inv_gsl);
+
+	// free(bins);
+	// free(l1_sig_thetas);
+	// free(l0_sig_thetas);
+	// free(l1_thetas);
+	// free(l0_thetas);
+	free(l0_g0s);
+	// free(edges);
+	// free(sorted_thetas);
 
 }
 

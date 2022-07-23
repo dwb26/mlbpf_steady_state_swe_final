@@ -55,12 +55,12 @@ void generate_hmm(gsl_rng * rng, HMM * hmm, int n_data, int length, int nx) {
 	Generates the HMM data and outputs to file to be read in by read_hmm.
 	*/
 	int obs_pos = nx - 1;
-	double sig_sd = 4.0;
-	// double sig_sd = 5.5;
+	// double sig_sd = 4.0;
+	double sig_sd = 2.0;
 	// double obs_sd = 0.1 * 0.037881;
 	// double obs_sd = 0.025;
 	// double obs_sd = 0.075;
-	double obs_sd = 0.1;
+	double obs_sd = 0.2;
 	// double obs_sd = 0.15;
 	// double obs_sd = 0.25;
 	double space_left = 0.0, space_right = 50.0;
@@ -510,7 +510,7 @@ int compute_sample_sizes_bpf(HMM * hmm, gsl_rng * rng, double T, int nx, w_doubl
 	 * 
 	 * */
 
-	int N_lo = 500, N_hi = 3000, N_bpf;
+	int N_lo = 1500, N_hi = 7500, N_bpf;
 	clock_t timer;
 	int length = hmm->length;
 	double T_lo, T_hi, T_bpf, diff;
